@@ -11,7 +11,8 @@ bot = Bot(token=cfg.BOT_TOKEN)
 
 @user_router.message(Command('start'))
 async def welcome_message(msg: Message):
-    
-    if msg.from_user.id == cfg.ADMIN_ID1 and msg.from_user.id == cfg.ADMIN_ID2:
 
+    if msg.from_user.id == cfg.ADMIN_ID1 and msg.from_user.id == cfg.ADMIN_ID2:
         await msg.answer("<b>Добро пожаловать!</b>\n\n Админ бота для управления стиркой.")
+    else:
+        await msg.answer("<b>Добро пожаловать!</b>\n\n Введите ФИО, комнату и номер зачетки для регистрации.")

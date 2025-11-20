@@ -9,6 +9,8 @@ from aiogram.enums import ParseMode
 from app.config import config as cfg
 from app.bot.handlers import users
 
+from db.base import init_db
+
 print(sys.path)
 
 TOKEN = cfg.BOT_TOKEN

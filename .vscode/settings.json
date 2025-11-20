@@ -4,18 +4,8 @@
         "**/.svn": true,
         "**/.hg": true,
         "**/.DS_Store": true,
-        "**/Thumbs.db": true,
-        "app/bot/handlers/__init__.py": true,
-        "app/bot/__init__.py": true,
-        "app/api/__init__.py": true,
-        "app/__init__.py": true,
-        "app/config/__init__.py": true,
-        "app/config/__pycache__": true,
-        "app/bot/handlers/__pycache__": true,
-        "app/bot/__pycache__": true,
-        "app/__pycache__": true
+        "**/Thumbs.db": true
     },
-    "hide-files.files": [
-        "app/bot/handlers/__init__.py"
-    ]
+    "hide-files.files": [],
+    "CodeGPT.apiKey": "CodeGPT Plus Beta"
 }
