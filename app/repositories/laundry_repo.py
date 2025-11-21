@@ -13,7 +13,7 @@ from app.db.models.booking import booking as Booking
 from app.db.models.room import rooms as Room
 
 
-                                # === Работа с пользователями ===
+# === Работа с пользователями ===
 # Проверка: есть ли юзер в базе
 async def get_user_by_tg_id(tg_id: int):
     async with async_session() as session:
@@ -47,7 +47,7 @@ async def get_all_machines() -> List[Machine]:
 async def is_slot_free(
     machine_id: int,
     date: datetime,
-    duration_minutes: int = 120  # стандартная стирка — 2 часа
+    duration_minutes: int = 90  #  стирка — 1 час 30 минут
 ) -> bool:
     end_time = date + timedelta(minutes=duration_minutes)
 
@@ -68,7 +68,7 @@ async def get_available_slots(
     date: datetime,
     work_start: int = 8,      # с 8:00
     work_end: int = 23,       # до 23:00
-    slot_duration: int = 120  # 2 часа
+    slot_duration: int = 90  # стирка — 1 час 30 минут
 ) -> List[datetime]:
     """Возвращает список доступных начал слотов на указанную дату"""
     available = []

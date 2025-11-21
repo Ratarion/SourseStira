@@ -13,7 +13,7 @@ class users(Base):
     idcards: Mapped[int] = mapped_column(BigInteger, nullable=False)
     
     # 3. Данные телеграм
-    tg_id: Mapped[BigInteger] = mapped_column(BigInteger, unique=True, nullable=False)
+    tg_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
     last_name: Mapped[str] = mapped_column(String, nullable=False)
     first_name: Mapped[str] = mapped_column(String, nullable=False)
     patronymic: Mapped[str] = mapped_column(String, nullable=False)
