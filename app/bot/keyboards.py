@@ -1,7 +1,8 @@
-from aiogram.types import {ReplyKeyboardMarkup, 
+from aiogram.types import (ReplyKeyboardMarkup, 
                            InlineKeyboardMarkup,
                            InlineKeyboardButton,
-                           KeyboardButton}
+                           KeyboardButton)
+from datetime import datetime
 
 months = {
     1: "Январь",
@@ -28,7 +29,6 @@ section = InlineKeyboardMarkup(
     ]
 )
 
-deg
 
 exit = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -45,3 +45,26 @@ def getYaersButton(years: list):
     ]
     yearsButton.append([InlineKeyboardButton(text="Выйти", callback_data="exit")])
     return InlineKeyboardMarkup(inline_keyboard=yearsButton)
+
+def get_time_slots_keyboard(date: datetime, slots: list[datetime]) -> InlineKeyboardMarkup:
+    buttons = []
+    for slot in slots:
+        text = slot.strftime("%H:%M")
+        callback = f"time_{date.year}_{date.month}_{date.day}_{slot.hour}"
+        buttons.append([InlineKeyboardButton(text=text, callback_data=callback)])
+
+    buttons.append([InlineKeyboardButton(text="Назад", callback_data="back_to_calendar")])
+    buttons.append([InlineKeyboardButton(text="Выйти", callback_data="exit")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_machines_keyboard(available_machines: list) -> InlineKeyboardMarkup:
+    buttons = [
+        [InlineKeyboardButton(
+            text=f"№{m.number_machine} ({m.type_machine})",
+            callback_data=f"machine_{m.id}"
+        )]
+        for m in available_machines
+    ]
+    buttons.append([InlineKeyboardButton(text="Назад", callback_data="back_to_time")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

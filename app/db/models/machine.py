@@ -1,11 +1,10 @@
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 from sqlalchemy import String, BigInteger, Boolean
+from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
-from db.models import base
-from db.models import room 
+from app.db.base import Base
+from app.db.models import room
 
-class machines(base):
+class machines(Base):
     __tablename__ = "machines"
 
     id: Mapped[BigInteger] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

@@ -1,9 +1,8 @@
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 from sqlalchemy import BigInteger
-from db.models import base
+from sqlalchemy.orm import Mapped, mapped_column
+from app.db.base import Base
 
-class rooms(base):
+class rooms(Base):
     __tablename__ = "rooms"
     idRoom: Mapped[BigInteger] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     
