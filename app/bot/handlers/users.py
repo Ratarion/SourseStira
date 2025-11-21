@@ -1,38 +1,108 @@
-from aiogram import Router
-from aiogram.filters import Command
-from aiogram.types import Message
-from aiogram import Bot
 from aiogram import Router, F
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import CommandStart
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from datetime import datetime, timedelta
-from app.repositories.laundry_repo import get_or_create_user, is_slot_free
-from aiogram.types import CallbackQuery, Message
 
+from app.bot.states import Registration, AddRecord
+from app.bot.keyboards import section, get_time_slots_keyboard, get_machines_keyboard # Убедитесь, что section есть в keyboards
 from app.repositories.laundry_repo import (
-    get_available_slots,
-    get_all_machines,
-    create_booking,
-    get_user_bookings,
-    cancel_booking
+    get_user_by_tg_id, 
+    create_new_user,
+    get_available_slots, 
+    get_all_machines, 
+    is_slot_free, 
+    create_booking
 )
-from app.bot.keyboards import get_time_slots_keyboard, get_machines_keyboard
-from app.bot.states import AddRecord
 
-from app.config import config as cfg
+user_router = Router()
 
-user_router = Router(name="user_router")
-bot = Bot(token=cfg.BOT_TOKEN)
+# ---------------------------------------------------------
+# ЛОГИКА РЕГИСТРАЦИИ
+# ---------------------------------------------------------
+
+@user_router.message(CommandStart())
+async def cmd_start(message: Message, state: FSMContext):
+    tg_id = message.from_user.id
+    existing_user = await get_user_by_tg_id(tg_id)
+
+    if existing_user:
+        await message.answer(
+            f"Здравствуйте, {existing_user.first_name}! Выберите действие:",
+            reply_markup=section
+        )
+    else:
+        await message.answer(
+            "Здравствуйте! Давайте зарегистрируемся.\n\n"
+            "Введите ваши <b>ФИО</b> через пробел:\n"
+            "<i>Пример: Иванов Иван Иванович</i>"
+        )
+        await state.set_state(Registration.waiting_for_fio)
+
+@user_router.message(Registration.waiting_for_fio)
+async def process_fio(message: Message, state: FSMContext):
+    text = message.text.strip()
+    parts = text.split()
+    
+    if len(parts) < 3:
+        await message.answer("Пожалуйста, введите Фамилию, Имя и Отчество через пробел.")
+        return
+
+    await state.update_data(fio=parts)
+    await message.answer("Принято! Теперь введите <b>номер комнаты</b> (только цифры):")
+    await state.set_state(Registration.waiting_for_room)
+
+@user_router.message(Registration.waiting_for_room)
+async def process_room(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("Номер комнаты должен быть числом.")
+        return
+
+    await state.update_data(room=int(message.text))
+    await message.answer("Введите <b>номер зачетной книжки</b>:")
+    await state.set_state(Registration.waiting_for_id_card)
+
+@user_router.message(Registration.waiting_for_id_card)
+async def process_id_card(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("Номер зачетки должен быть числом.")
+        return
+
+    data = await state.get_data()
+    tg_id = message.from_user.id
+    
+    # Сохраняем в БД
+    try:
+        await create_new_user(
+            tg_id=tg_id,
+            fio=data['fio'],
+            room=data['room'],
+            id_card=int(message.text)
+        )
+        await message.answer(
+            "Регистрация успешна! Добро пожаловать.",
+            reply_markup=section
+        )
+        await state.clear()
+    except Exception as e:
+        await message.answer(f"Ошибка при сохранении: {e}")
 
 
+# ---------------------------------------------------------
+# ЛОГИКА ЗАПИСИ НА СТИРКУ
+# ---------------------------------------------------------
+
+# Обработка кнопки "Записаться" (нужно добавить callback в keyboards.py или проверить его)
+@user_router.callback_query(F.data == "record")
+async def start_record(callback: CallbackQuery, state: FSMContext):
+    # Тут должна быть логика выбора года/месяца, или сразу отправка календаря
+    # Для примера просто заглушка или переход к выбору
+    await callback.message.answer("Выберите дату (функция в разработке)") 
+    # Здесь вы обычно вызываете функцию показа календаря
 
 
-router = Router()
-
-
-# Шаг 1: Выбор года → месяца → дня (уже есть у тебя)
-# После выбора дня:
-@router.callback_query(F.data.startswith("day_"))
+# Ваш код выбора дня
+@user_router.callback_query(F.data.startswith("day_"))
 async def process_day(callback: CallbackQuery, state: FSMContext):
     _, year, month, day = callback.data.split("_")
     date = datetime(int(year), int(month), int(day))
@@ -55,16 +125,14 @@ async def process_day(callback: CallbackQuery, state: FSMContext):
     )
     await state.set_state(AddRecord.waiting_for_time)
 
-
-# Шаг 2: Выбор времени
-@router.callback_query(F.data.startswith("time_"))
+# Ваш код выбора времени
+@user_router.callback_query(F.data.startswith("time_"))
 async def process_time(callback: CallbackQuery, state: FSMContext):
     _, y, m, d, h = callback.data.split("_")
     chosen_dt = datetime(int(y), int(m), int(d), int(h))
 
     await state.update_data(start_time=chosen_dt)
 
-    # Находим свободные машины в этот слот
     machines = await get_all_machines()
     available_machines = []
     for machine in machines:
@@ -80,15 +148,15 @@ async def process_time(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_machines_keyboard(available_machines)
     )
 
-
-# Шаг 3: Выбор машины → создание брони
-@router.callback_query(F.data.startswith("machine_"))
+# Ваш код создания брони
+@user_router.callback_query(F.data.startswith("machine_"))
 async def process_machine(callback: CallbackQuery, state: FSMContext):
     machine_id = int(callback.data.split("_")[1])
     data = await state.get_data()
-
-    user = await get_or_create_user(...)  # получаешь из контекста или БД по tg_id
     start_time = data["start_time"]
+    
+    # Получаем юзера из базы (он уже точно есть, т.к. прошел регистрацию)
+    user = await get_user_by_tg_id(callback.from_user.id)
 
     try:
         booking = await create_booking(
@@ -100,7 +168,8 @@ async def process_machine(callback: CallbackQuery, state: FSMContext):
             f"Запись создана!\n"
             f"Машина №{booking.machine.number_machine}\n"
             f"{start_time.strftime('%d.%m.%Y %H:%M')} – "
-            f"{(start_time + timedelta(hours=2)).strftime('%H:%M')}"
+            f"{(start_time + timedelta(hours=2)).strftime('%H:%M')}",
+            reply_markup=section # Возвращаем меню
         )
     except ValueError:
         await callback.message.edit_text("Слот уже занят другим пользователем!")

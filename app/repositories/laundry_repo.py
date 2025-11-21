@@ -5,6 +5,7 @@ from typing import List, Optional
 from sqlalchemy import select, update, delete, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
 from app.db.base import async_session
 from app.db.models.user import users as User
 from app.db.models.machine import machines as Machine
@@ -12,33 +13,28 @@ from app.db.models.booking import booking as Booking
 from app.db.models.room import rooms as Room
 
 
-# === Работа с пользователями ===
-async def get_or_create_user(
-    tg_id: int,
-    id_cards: int,
-    room_id: int,
-    last_name: str,
-    first_name: str,
-    patronymic: str | None = None
-) -> User:
+                                # === Работа с пользователями ===
+# Проверка: есть ли юзер в базе
+async def get_user_by_tg_id(tg_id: int):
     async with async_session() as session:
-        result = await session.execute(select(User).where(User.tg_id == tg_id))
-        user = result.scalar_one_or_none()
+        query = select(User).where(User.tg_id == tg_id)
+        result = await session.execute(query)
+        return result.scalar_one_or_none()
 
-        if not user:
-            user = User(
-                tg_id=tg_id,
-                idCards=id_cards,
-                inIdRoom=room_id,
-                last_name=last_name,
-                first_name=first_name,
-                patronymic=patronymic or ""
-            )
-            session.add(user)
-            await session.commit()
-            await session.refresh(user)
-        return user
-
+# Создание нового юзера
+async def create_new_user(tg_id: int, fio: list, room: int, id_card: int):
+    async with async_session() as session:
+        new_user = User(
+            tg_id=tg_id,
+            last_name=fio[0],
+            first_name=fio[1],
+            patronymic=fio[2],
+            inidroom=room,
+            idcards=id_card
+        )
+        session.add(new_user)
+        await session.commit()
+        return new_user
 
 # === Работа с машинами ===
 async def get_all_machines() -> List[Machine]:
