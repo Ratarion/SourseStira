@@ -54,7 +54,7 @@ async def is_slot_free(
     async with async_session() as session:
         result = await session.execute(
             select(Booking).where(
-                Booking.inIdMachine == machine_id,
+                Booking.inidmachine == machine_id,
                 Booking.start_time < end_time,
                 Booking.end_time > date
             )
@@ -104,8 +104,8 @@ async def create_booking(
             raise ValueError("Слот уже занят")
 
         booking = Booking(
-            inIdUser=user_id,
-            inIdMachine=machine_id,
+            iniduser=user_id,
+            inidmachine=machine_id,
             start_time=start_time,
             end_time=end_time
         )
@@ -120,7 +120,7 @@ async def get_user_bookings(tg_id: int) -> List[Booking]:
     async with async_session() as session:
         result = await session.execute(
             select(Booking)
-            .join(User, Booking.inIdUser == User.id)
+            .join(User, Booking.iniduser == User.id)
             .where(User.tg_id == tg_id)
             .order_by(Booking.start_time)
         )
@@ -132,7 +132,7 @@ async def cancel_booking(booking_id: int, tg_id: int) -> bool:
     async with async_session() as session:
         result = await session.execute(
             select(Booking)
-            .join(User, Booking.inIdUser == User.id)
+            .join(User, Booking.iniduser == User.id)
             .where(Booking.id == booking_id, User.tg_id == tg_id)
         )
         booking = result.scalar_one_or_none()
