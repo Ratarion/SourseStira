@@ -10,5 +10,3 @@ else:
 root_path = Path(__file__).resolve().parents[1]
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID1 = int(os.getenv("ADMIN_ID1"))
-ADMIN_ID2 = int(os.getenv("ADMIN_ID2"))
