@@ -3,8 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_
 from sqlalchemy import Boolean, Integer, DateTime
 from datetime import datetime
 from app.db.base import Base
-from . import user
-from . import machine
+
 
 class booking(Base):
     __tablename__ = "booking"

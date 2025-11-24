@@ -2,7 +2,6 @@ from sqlalchemy import String, Integer, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 from app.db.base import Base
-from app.db.models import room
 
 class machines(Base):
     __tablename__ = "machines"
