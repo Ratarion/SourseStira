@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 from app.db.base import async_session
-from app.db.models.user import users as User
+from app.db.models.residents import users as User
 from app.db.models.machine import machines as Machine
 from app.db.models.booking import booking as Booking
 from app.db.models.room import rooms as Room
