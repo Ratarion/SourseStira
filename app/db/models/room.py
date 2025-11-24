@@ -5,6 +5,5 @@ from app.db.base import Base
 class rooms(Base):
     __tablename__ = "rooms"
     
-    #autoincrement=True добавит автоматический номер
-    idroom: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    idroom: Mapped[int] = mapped_column(Integer, primary_key=True)
     

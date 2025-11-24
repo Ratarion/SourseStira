@@ -96,7 +96,7 @@ async def process_id_card(message: Message, state: FSMContext):
         )
         await state.clear()
     except Exception as e:
-        await message.answer(f"Ошибка при сохранении: {e}")
+        await message.answer(f"Ошибка при сохранении: {str(e).split('>')[1] if '<class' in str(e) else str(e)}")
 
 
 # ---------------------------------------------------------

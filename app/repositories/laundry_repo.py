@@ -7,11 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 from app.db.base import async_session
-from app.db.models.residents import users as User
-from app.db.models.machine import machines as Machine
-from app.db.models.booking import booking as Booking
+from app.db.models.residents import Resident as User
+from app.db.models.machine import Machine as Machine
+from app.db.models.booking import Booking as Booking
 from app.db.models.room import rooms as Room
-
 
 # === Работа с пользователями ===
 # Проверка: есть ли юзер в базе
@@ -104,7 +103,7 @@ async def create_booking(
             raise ValueError("Слот уже занят")
 
         booking = Booking(
-            iniduser=user_id,
+            inidresidents=user_id,
             inidmachine=machine_id,
             start_time=start_time,
             end_time=end_time
@@ -120,7 +119,7 @@ async def get_user_bookings(tg_id: int) -> List[Booking]:
     async with async_session() as session:
         result = await session.execute(
             select(Booking)
-            .join(User, Booking.iniduser == User.id)
+            .join(User, Booking.inidresidents == User.id)
             .where(User.tg_id == tg_id)
             .order_by(Booking.start_time)
         )
@@ -132,7 +131,7 @@ async def cancel_booking(booking_id: int, tg_id: int) -> bool:
     async with async_session() as session:
         result = await session.execute(
             select(Booking)
-            .join(User, Booking.iniduser == User.id)
+            .join(User, Booking.inidresidents == User.id)
             .where(Booking.id == booking_id, User.tg_id == tg_id)
         )
         booking = result.scalar_one_or_none()
