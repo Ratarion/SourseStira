@@ -10,3 +10,4 @@ else:
 root_path = Path(__file__).resolve().parents[1]
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+HOST = os.getenv("HOST")

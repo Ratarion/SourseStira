@@ -19,12 +19,16 @@ months = {
     12: "Декабрь"
 }
 
+
+
 section = InlineKeyboardMarkup(
     inline_keyboard=[
         [
             InlineKeyboardButton(text="Записаться на стирку", callback_data="record"),
             InlineKeyboardButton(text="Показать мои записи", callback_data="show_records"),
-            InlineKeyboardButton(text="Отменить запись", callback_data="show__records")
+            InlineKeyboardButton(text="Отменить запись", callback_data="show__records"),
+            InlineKeyboardButton(text="RU", callback_data="ChangeLangeugeRU"),
+            InlineKeyboardButton(text="ENG", callback_data="ChangeLangeugeENG")
         ],
     ]
 )

@@ -26,7 +26,7 @@ async def main():
     max_retries = 5
     for attempt in range(1, max_retries + 1):
         try:
-            logging.info(f"[Bot] Starting polling, attempt {attempt}")
+            logging.info(f"[Bot] Starting polling, attempt    {attempt}")
             await dp.start_polling(bot)
             break
         except (aiohttp.ClientConnectorError, TelegramNetworkError) as e:
