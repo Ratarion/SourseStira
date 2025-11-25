@@ -22,7 +22,7 @@ DATABASE_URL = f"postgresql+asyncpg://{USER}:{PASSWORD}@{HOST}:{PORT}/{DBNAME}"
 # Это критично для работы через Supabase Session Pooler (порт 5432)
 engine = create_async_engine(
     DATABASE_URL,
-    poolclass=NullPool,        # <--- Отключаем встроенный пулинг SQLAlchemy
+    poolclass=NullPool,        # Отключаем встроенный пулинг SQLAlchemy
     pool_pre_ping=True,        # Проверка соединения перед запросом
     echo=False                 # Можно поставить True, чтобы видеть SQL запросы в консоли
 )

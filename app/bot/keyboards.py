@@ -19,7 +19,7 @@ months = {
     12: "Декабрь"
 }
 
-kb_welcom = ReplyKeyboardMarkup(keyboard=[
+kb_welcom = ReplyKeyboardMarkup(resize_keyboard=True,keyboard=[
     [KeyboardButton(text='RU')],
     [KeyboardButton(text="ENG"), KeyboardButton(text='CN')]
 ])

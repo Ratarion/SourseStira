@@ -23,7 +23,7 @@ user_router = Router()
 # ---------------------------------------------------------
 @user_router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    await message.reply(f'Здравствуйте, выбирете язык\n Hello, choose a language', reply_markup=kb_welcom)
+    await message.reply(f'Здравствуйте, выбирете язык\nHello, choose a language', reply_markup=kb_welcom)
 
 @user_router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
