@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from datetime import datetime, timedelta
 
 from app.bot.states import Registration, AddRecord
-from app.bot.keyboards import section, get_time_slots_keyboard, get_machines_keyboard # Убедитесь, что section есть в keyboards
+from app.bot.keyboards import kb_welcom, section, get_time_slots_keyboard, get_machines_keyboard
 from app.repositories.laundry_repo import (
     get_user_by_tg_id, 
     create_new_user,
@@ -17,30 +17,27 @@ from app.repositories.laundry_repo import (
 
 user_router = Router()
 
-# ---------------------------------------------------------
-# Смена языка
-# ---------------------------------------------------------
-
-# Обработка кнопки "Смены языка"
-@user_router.callback_query(F.data == "ChangeLangeugeRU")
-async def start_record(callback: CallbackQuery, state: FSMContext):
-    
-    await callback.message.answer("Смена языка на ENG (функция в разработке)") 
-    # Здесь вы обычно вызываете функцию показа календаря
 
 # ---------------------------------------------------------
 # ЛОГИКА РЕГИСТРАЦИИ
 # ---------------------------------------------------------
+@user_router.message(CommandStart())
+async def cmd_start(message: Message, state: FSMContext):
+    await message.reply(f'Здравствуйте, выбирете язык\n Hello, choose a language', reply_markup=kb_welcom)
 
 @user_router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
+
     tg_id = message.from_user.id
     existing_user = await get_user_by_tg_id(tg_id)
+    
+    
 
     if existing_user:
         await message.answer(
             f"Здравствуйте, {existing_user.first_name}! Выберите действие:",
             reply_markup=section
+            
         )
     else:
         await message.answer(
@@ -49,6 +46,7 @@ async def cmd_start(message: Message, state: FSMContext):
             "<i>Пример: Иванов Иван Иванович</i>"
         )
         await state.set_state(Registration.waiting_for_fio)
+
 
 @user_router.message(Registration.waiting_for_fio)
 async def process_fio(message: Message, state: FSMContext):
