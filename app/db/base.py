@@ -1,7 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncAttrs, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import text
-from app.db.models.room import rooms as Room
 from dotenv import load_dotenv
 import os
 import asyncio
@@ -42,17 +41,3 @@ async def test_connection():
 
 if __name__ == "__main__":
     asyncio.run(test_connection())
-
-
-
-
-async def populate_rooms():
-    async with async_session() as session:
-        for num in range(1, 1001):  # Для комнат 1-1000
-            room = Room(idroom=num)
-            session.add(room)
-        await session.commit()
-        print("Комнаты добавлены!")
-
-if __name__ == "__main__":
-    asyncio.run(populate_rooms())
