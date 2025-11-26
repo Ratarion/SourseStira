@@ -42,6 +42,8 @@ def get_section_keyboard(lang: str) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text=t["show_records"], callback_data="show_records")],
             # Строка 3: Отменить запись
             [InlineKeyboardButton(text=t["cancel_record"], callback_data="remove_records")],
+            # Строка 4: Репорт (О ошибки)
+            [InlineKeyboardButton(text=t["report_in_admin"], callback_data="report")],
         ]
     )
 

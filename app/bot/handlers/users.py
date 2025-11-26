@@ -17,9 +17,9 @@ from app.bot.keyboards import (
 # Импортируем новые функции репозитория
 from app.repositories.laundry_repo import (
     get_user_by_tg_id, 
-    find_resident_by_fio,      # НОВАЯ
-    find_resident_by_id_card,  # НОВАЯ
-    activate_resident_user,    # НОВАЯ
+    find_resident_by_fio,     
+    find_resident_by_id_card,  
+    activate_resident_user,    
     get_available_slots, 
     get_all_machines, 
     is_slot_free, 
@@ -50,7 +50,7 @@ async def cmd_start_initial(message: Message, state: FSMContext):
             reply_markup=kb_welcom
         )
     else:
-        await cmd_start_registered(message, state) 
+        await cmd_start_auth(message, state) 
 
 
 @user_router.callback_query(F.data.startswith("lang_"))
@@ -59,18 +59,14 @@ async def set_language(callback: CallbackQuery, state: FSMContext):
     await state.update_data(lang=lang)
     
     await callback.message.delete()
-    await cmd_start_registered(callback.message, state)
+    await cmd_start_auth(callback.message, state)
 
 
 # ---------------------------------------------------------
-# ЛОГИКА РЕГИСТРАЦИИ (Локализовано)
+# ЛОГИКА АУТЕНТИФИКАЦИИ (Локализовано)
 # ---------------------------------------------------------
 
-# ---------------------------------------------------------
-# ЛОГИКА АУТЕНТИФИКАЦИИ (БЕЗ РЕГИСТРАЦИИ НОВОГО)
-# ---------------------------------------------------------
-
-async def cmd_start_registered(message: Message, state: FSMContext):
+async def cmd_start_auth(message: Message, state: FSMContext):
     tg_id = message.from_user.id
     
     # 1. Проверяем, привязан ли уже этот ТГ к кому-то
@@ -148,7 +144,7 @@ async def process_id_card_auth(message: Message, state: FSMContext):
     if resident:
          # Успех
         if resident.tg_id and resident.tg_id != message.from_user.id:
-            await message.answer("Этот пользователь уже зарегистрирован с другого аккаунта.")
+            await message.answer(t["other_tg_id"])
             return
 
         await activate_resident_user(resident.id, message.from_user.id)
@@ -162,7 +158,7 @@ async def process_id_card_auth(message: Message, state: FSMContext):
     else:
         # Провал окончательный
         # Текст: "Пользователь не найден. Обратитесь к администратору."
-        fail_text = t.get("auth_fail_final", "Данные не найдены в системе. Обратитесь к администратору.")
+        fail_text = t["none_user"]
         await message.answer(fail_text)
         # Можно сбросить или оставить в ожидании ввода
         # await state.clear()
