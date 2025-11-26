@@ -2,7 +2,9 @@ from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
+from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
+
 
 from app.locales import ru, en, cn
 from app.bot.states import Auth, AddRecord
@@ -12,9 +14,7 @@ from app.bot.keyboards import (
     kb_welcom, 
     get_section_keyboard, 
     get_time_slots_keyboard, 
-    get_machines_keyboard,
-    get_years_keyboard,   
-    get_months_keyboard   
+    get_machines_keyboard
 )
 
 #Ипорт запросов
@@ -160,45 +160,83 @@ async def process_id_card_auth(message: Message, state: FSMContext):
 # ---------------------------------------------------------
 # ЛОГИКА ЗАПИСИ НА СТИРКУ (Локализовано)
 # ---------------------------------------------------------
-
 #Запись на стирку
-# 1. Начало записи: Выбор года
+# 1. Начало записи: Вызов календаря
 @user_router.callback_query(F.data == "record")
 async def start_record(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
     
-    # Генерируем список: текущий год и следующий
-    current_year = datetime.now().year
-    years_list = [current_year, current_year + 1]
-
-    await state.set_state(AddRecord.waiting_for_year)
+    # Устанавливаем состояние ожидания выбора дня
+    await state.set_state(AddRecord.waiting_for_day)
     
-    # Текст: "Выберите дату" (или добавьте ключ "select_year" в словарь)
+    # Преобразование языка: Календарь использует 'ru', 'en'.
+    locale_map = {'RU': 'ru', 'ENG': 'en', 'CN': 'ru'}
+    calendar_locale = locale_map.get(lang, 'en')
+    
+    calendar = SimpleCalendar(locale=calendar_locale) 
+
+    # Отправляем календарь
     await callback.message.edit_text(
         t["record_start"], 
-        reply_markup=get_years_keyboard(years_list, lang) 
+        reply_markup=await calendar.start_calendar(
+            year=date.today().year, 
+            month=date.today().month
+        )
     )
 
-# 2. Обработка выбора года -> Выбор месяца
-@user_router.callback_query(F.data.startswith("year_"))
-async def process_year_selection(callback: CallbackQuery, state: FSMContext):
+# 2. Обработка выбора дня из календаря
+@user_router.callback_query(SimpleCalendarCallback.filter(), AddRecord.waiting_for_day) # <-- Добавлена проверка состояния
+async def process_simple_calendar(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    
-    # Получаем год из callback (например, year_2024)
-    selected_year = int(callback.data.split("_")[1])
-    
-    # Сохраняем год в состояние
-    await state.update_data(year=selected_year)
-    await state.set_state(AddRecord.waiting_for_month)
 
-    # Показываем клавиатуру месяцев
-    # (Предположим, что нужен текст "Выберите месяц". Если его нет, используем record_start)
-    await callback.message.edit_text(
-        f"{t['record_start']} (Month)", # Лучше добавить ключ "choose_month" в словари
-        reply_markup=get_months_keyboard(selected_year, lang)
+    locale_map = {'RU': 'ru', 'ENG': 'en', 'CN': 'ru'}
+    calendar_locale = locale_map.get(lang, 'ru')
+    
+    # Получаем результат от календаря
+    selected, chosen_date = await SimpleCalendar(locale=calendar_locale).process_selection(
+        callback, callback_data
     )
+    
+    # Если дата выбрана
+    if selected:
+        # Проверяем, что дата не в прошлом
+        if chosen_date < date.today():
+             await callback.message.answer(
+                 "Вы не можете выбрать прошедшую дату. Пожалуйста, выберите дату еще раз.",
+                 reply_markup=await SimpleCalendar(locale=calendar_locale).start_calendar(
+                    year=date.today().year, month=date.today().month
+                 )
+             )
+             return
 
-# 3. Обработка выбора месяца -> Выбор дня (Календарь)
+        # Формируем полную дату-время для получения слотов
+        date_for_slots = datetime(chosen_date.year, chosen_date.month, chosen_date.day)
+
+        # Получаем доступные слоты
+        available_slots = await get_available_slots(date_for_slots)
+
+        # Проверяем наличие слотов
+        if not available_slots:
+            date_str = date_for_slots.strftime('%d.%m')
+            await callback.message.edit_text(
+                t["slots_none"].replace("{date}", date_str),
+                # Возвращаем клавиатуру, чтобы можно было выйти или снова открыть календарь
+                reply_markup=get_section_keyboard(lang)
+            )
+            return
+
+        # Сохраняем дату и переходим к выбору времени
+        await state.update_data(chosen_date=date_for_slots)
+        await state.set_state(AddRecord.waiting_for_time)
+
+        # Локализовано: Выберите время на {date}
+        await callback.message.edit_text(
+            t["time_prompt"].replace("{date}", date_for_slots.strftime('%d.%m')),
+            reply_markup=get_time_slots_keyboard(date_for_slots, available_slots, lang)
+        )
+
+
+# 2. Обработка выбора месяца -> Выбор дня (Календарь)
 @user_router.callback_query(F.data.startswith("month_"))
 async def process_month_selection(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
@@ -218,7 +256,7 @@ async def process_month_selection(callback: CallbackQuery, state: FSMContext):
         SimpleCalendar().start_calendar()
     )
 
-# Ваш код выбора дня
+# Код выбора дня
 @user_router.callback_query(F.data.startswith("day_"))
 async def process_day(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
@@ -245,7 +283,7 @@ async def process_day(callback: CallbackQuery, state: FSMContext):
     )
     await state.set_state(AddRecord.waiting_for_time)
 
-# Ваш код выбора времени
+# Код выбора времени
 @user_router.callback_query(F.data.startswith("time_"))
 async def process_time(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
@@ -271,7 +309,7 @@ async def process_time(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_machines_keyboard(available_machines, lang)
     )
 
-# Ваш код создания брони
+# Код создания брони
 @user_router.callback_query(F.data.startswith("machine_"))
 async def process_machine(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
