@@ -1,8 +1,9 @@
 # app/repositories/laundry_repo.py
 from datetime import datetime, timedelta
+from sqlalchemy import Integer
 from typing import List, Optional
 
-from sqlalchemy import select, update, delete, and_, func
+from sqlalchemy import select, update, delete, and_, func, extract, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -199,3 +200,49 @@ async def cancel_booking(booking_id: int, tg_id: int) -> bool:
             await session.commit()
             return True
         return False
+    
+
+# ==========================================
+# ЛОГИКА КАЛЕНДАРЯ
+# ==========================================
+
+async def get_month_workload(year: int, month: int) -> dict:
+    """
+    Возвращает словарь {день: количество_записей} для указанного месяца.
+    Пример: {1: 5, 2: 12, 15: 0}
+    """
+    async with async_session() as session:
+        query = (
+            select(
+                extract('day', Booking.start_time).cast(Integer).label('day'),
+                func.count(Booking.id).label('count')
+            )
+            .where(
+                extract('year', Booking.start_time) == year,
+                extract('month', Booking.start_time) == month,
+                Booking.status != 'cancelled' 
+            )
+            .group_by('day')
+        )
+        result = await session.execute(query)
+        return {row.day: row.count for row in result.all()}
+
+async def get_total_daily_capacity() -> int:
+    """
+    Считаем МАКСИМАЛЬНОЕ кол-во слотов в день.
+    """
+    async with async_session() as session:
+        # Считаем только рабочие машины (не broken)
+        # Если статус 'free' или 'busy' — машина рабочая. Если 'broken' — нет.
+        # В вашем machine.py default='free'. Предположим, что все, кроме 'broken', рабочие.
+        query = select(func.count(Machine.id)).where(Machine.status != 'broken')
+        result = await session.execute(query)
+        active_machines = result.scalar() or 0
+    
+    # Параметры работы прачечной
+    # 8:00 - 23:00 = 15 часов.
+    # Слот 1.5 часа (90 мин).
+    # 15 / 1.5 = 10 слотов на одну машину.
+    SLOTS_PER_MACHINE = 10
+    
+    return active_machines * SLOTS_PER_MACHINE

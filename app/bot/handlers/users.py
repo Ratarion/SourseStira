@@ -1,10 +1,21 @@
 from aiogram import Router, F
 from aiogram.filters import CommandStart
+from app.bot.calendar_utils import CustomLaundryCalendar
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from datetime import datetime, date, timedelta
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
+try:
+    from aiogram_calendar.schemas import SimpleCalendarAction
+except ImportError:
+    class SimpleCalendarAction:
+        DAY = "DAY"
+        PREV_MONTH = "PREV-MONTH"
+        NEXT_MONTH = "NEXT-MONTH"
+        PREV_YEAR = "PREV-YEAR"
+        NEXT_YEAR = "NEXT-YEAR"
 
+from app.bot.calendar_utils import CustomLaundryCalendar
 
 from app.locales import ru, en, cn
 from app.bot.states import Auth, AddRecord
@@ -14,7 +25,7 @@ from app.bot.keyboards import (
     kb_welcom, 
     get_section_keyboard, 
     get_time_slots_keyboard, 
-    get_machines_keyboard
+    get_machines_keyboard,
 )
 
 #Ипорт запросов
@@ -26,7 +37,9 @@ from app.repositories.laundry_repo import (
     get_available_slots, 
     get_all_machines, 
     is_slot_free, 
-    create_booking
+    create_booking,
+    get_month_workload, 
+    get_total_daily_capacity
 )
 
 user_router = Router()
@@ -158,82 +171,111 @@ async def process_id_card_auth(message: Message, state: FSMContext):
         # await state.clear()
         
 # ---------------------------------------------------------
-# ЛОГИКА ЗАПИСИ НА СТИРКУ (Локализовано)
+# ЛОГИКА ЗАПИСИ НА СТИРКУ (ОБНОВЛЕННАЯ)
 # ---------------------------------------------------------
-#Запись на стирку
-# 1. Начало записи: Вызов календаря
+
+# Вспомогательная функция для генерации календаря с данными
+async def get_colored_calendar(year: int, month: int, locale: str):
+    workload = await get_month_workload(year, month)
+    max_slots = await get_total_daily_capacity()
+    
+    calendar = CustomLaundryCalendar(
+        workload=workload,
+        max_capacity=max_slots,
+        locale=locale
+    )
+    return await calendar.start_calendar(year=year, month=month)
+
+
+# 1. Начало записи
 @user_router.callback_query(F.data == "record")
 async def start_record(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    
-    # Устанавливаем состояние ожидания выбора дня
     await state.set_state(AddRecord.waiting_for_day)
     
-    # Преобразование языка: Календарь использует 'ru', 'en'.
-    locale_map = {'RU': 'ru', 'ENG': 'en', 'CN': 'ru'}
-    calendar_locale = locale_map.get(lang, 'en')
-    
-    calendar = SimpleCalendar(locale=calendar_locale) 
-
-    # Отправляем календарь
-    await callback.message.edit_text(
-        t["record_start"], 
-        reply_markup=await calendar.start_calendar(
-            year=date.today().year, 
-            month=date.today().month
-        )
-    )
-
-# 2. Обработка выбора дня из календаря
-@user_router.callback_query(SimpleCalendarCallback.filter(), AddRecord.waiting_for_day) # <-- Добавлена проверка состояния
-async def process_simple_calendar(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
-    lang, t = await get_lang_and_texts(state)
-
     locale_map = {'RU': 'ru', 'ENG': 'en', 'CN': 'ru'}
     calendar_locale = locale_map.get(lang, 'ru')
     
-    # Получаем результат от календаря
-    selected, chosen_date = await SimpleCalendar(locale=calendar_locale).process_selection(
-        callback, callback_data
-    )
+    today = datetime.now()
     
-    # Если дата выбрана
-    if selected:
-        # Проверяем, что дата не в прошлом
-        if chosen_date < date.today():
-             await callback.message.answer(
-                 "Вы не можете выбрать прошедшую дату. Пожалуйста, выберите дату еще раз.",
-                 reply_markup=await SimpleCalendar(locale=calendar_locale).start_calendar(
-                    year=date.today().year, month=date.today().month
-                 )
-             )
+    # Генерируем "умный" календарь
+    markup = await get_colored_calendar(today.year, today.month, calendar_locale)
+
+    await callback.message.edit_text(t["record_start"], reply_markup=markup)
+
+
+# 2. ЕДИНЫЙ Хендлер для календаря (и выбор дня, и навигация)
+@user_router.callback_query(SimpleCalendarCallback.filter(), AddRecord.waiting_for_day)
+async def process_calendar_selection(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
+    lang, t = await get_lang_and_texts(state)
+    locale_map = {'RU': 'ru', 'ENG': 'en', 'CN': 'ru'}
+    calendar_locale = locale_map.get(lang, 'ru')
+
+    # --- СЦЕНАРИЙ 1: Навигация (<< >>) ---
+    # Проверяем, является ли действие сменой месяца или года
+    # В 0.6.0 действия это enum или строки. Проверим основные.
+    nav_actions = [
+        SimpleCalendarAction.PREV_MONTH, 
+        SimpleCalendarAction.NEXT_MONTH,
+        SimpleCalendarAction.PREV_YEAR, 
+        SimpleCalendarAction.NEXT_YEAR
+    ]
+    
+    if callback_data.act in nav_actions:
+        # callback_data уже содержит НОВЫЙ год и месяц, куда пользователь кликнул
+        new_year = callback_data.year
+        new_month = callback_data.month
+        
+        # Генерируем новый календарь с точками для нового месяца
+        markup = await get_colored_calendar(new_year, new_month, calendar_locale)
+        
+        await callback.message.edit_text(t["record_start"], reply_markup=markup)
+        return
+
+    # --- СЦЕНАРИЙ 2: Выбор дня (DAY) ---
+    if callback_data.act == SimpleCalendarAction.DAY:
+        # Получаем объект даты
+        # Используем calendar_utils (наш класс) просто чтобы распарсить, 
+        # но проще собрать дату вручную, так как данные у нас на руках
+        chosen_date = datetime(callback_data.year, callback_data.month, callback_data.day)
+        
+        # Проверка на прошлое
+        if chosen_date.date() < date.today():
+             await callback.answer("Нельзя выбрать дату в прошлом!", show_alert=True)
+             # Перерисовываем календарь (чтобы не завис лоадинг), тот же самый месяц
+             markup = await get_colored_calendar(callback_data.year, callback_data.month, calendar_locale)
+             await callback.message.edit_text(t["record_start"], reply_markup=markup)
              return
 
-        # Формируем полную дату-время для получения слотов
-        date_for_slots = datetime(chosen_date.year, chosen_date.month, chosen_date.day)
-
-        # Получаем доступные слоты
-        available_slots = await get_available_slots(date_for_slots)
-
-        # Проверяем наличие слотов
-        if not available_slots:
-            date_str = date_for_slots.strftime('%d.%m')
-            await callback.message.edit_text(
-                t["slots_none"].replace("{date}", date_str),
-                # Возвращаем клавиатуру, чтобы можно было выйти или снова открыть календарь
-                reply_markup=get_section_keyboard(lang)
-            )
+        # Проверка занятости (финальная, перед открытием слотов)
+        workload = await get_month_workload(chosen_date.year, chosen_date.month)
+        max_slots = await get_total_daily_capacity()
+        used = workload.get(chosen_date.day, 0)
+        
+        if used >= max_slots and max_slots > 0:
+            await callback.answer("На этот день мест нет 🔴", show_alert=True)
             return
 
-        # Сохраняем дату и переходим к выбору времени
-        await state.update_data(chosen_date=date_for_slots)
+        # Успех: переходим к выбору времени
+        await state.update_data(chosen_date=chosen_date)
         await state.set_state(AddRecord.waiting_for_time)
 
-        # Локализовано: Выберите время на {date}
+        # Получаем слоты (ваша старая функция)
+        available_slots = await get_available_slots(chosen_date)
+
+        if not available_slots:
+            await callback.answer("Нет свободных слотов (проверка по времени)", show_alert=True)
+            return
+
         await callback.message.edit_text(
-            t["time_prompt"].replace("{date}", date_for_slots.strftime('%d.%m')),
-            reply_markup=get_time_slots_keyboard(date_for_slots, available_slots, lang)
+            t["time_prompt"].replace("{date}", chosen_date.strftime('%d.%m')),
+            reply_markup=get_time_slots_keyboard(chosen_date, available_slots, lang)
         )
+        
+    # --- СЦЕНАРИЙ 3: Игнор или прочее ---
+    else:
+        # Например, клик по дням недели или заголовку
+        await callback.answer()
 
 
 # 2. Обработка выбора месяца -> Выбор дня (Календарь)
