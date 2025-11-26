@@ -36,11 +36,12 @@ def get_section_keyboard(lang: str) -> InlineKeyboardMarkup:
     t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"]) # Дефолт - RU
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(text=t["record_laundry"], callback_data="record"),
-                InlineKeyboardButton(text=t["show_records"], callback_data="show_records"),
-                InlineKeyboardButton(text=t["cancel_record"], callback_data="remove_records"),
-            ],
+            # Строка 1: Записаться
+            [InlineKeyboardButton(text=t["record_laundry"], callback_data="record")],
+            # Строка 2: Показать записи
+            [InlineKeyboardButton(text=t["show_records"], callback_data="show_records")],
+            # Строка 3: Отменить запись
+            [InlineKeyboardButton(text=t["cancel_record"], callback_data="remove_records")],
         ]
     )
 

@@ -198,4 +198,4 @@ async def cancel_booking(booking_id: int, tg_id: int) -> bool:
             await session.delete(booking)
             await session.commit()
             return True
-        return Falseы
+        return False
