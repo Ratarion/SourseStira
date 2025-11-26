@@ -19,7 +19,11 @@ CNtexts = {
         "booking_success": "预订成功!\n洗衣机 №{machine_num}\n{start} – {end}",
         "booking_error": "该时段已被其他用户预订!",
         # Аунтификация
-        "none_user": "系统中未找到数据。 与管理员联系.",
+        "none_user": "系统中未找到数据. 与管理员联系.",
+        "reg_id_error": "请只输入数字.",
         "other_tg_id": "这个用户已经注册了另一个帐户.",
+        "seek_cards": "未找到具有此名称的用户. 输入您的学生证号码（仅限数字)",
+        "auth": "输入您的全名（姓氏，名字，父名）以获得授权:",
+        "write_FIO": "请输入您的全名 (至少2个字).",
     }
 }

@@ -8,11 +8,11 @@ class AddRecord(StatesGroup):
     waiting_for_time = State()
 
 # --- Вход ---
-class Welcow(StatesGroup):
+class Welcome(StatesGroup):
     waiting_for_client = State()
 
-class CancleRecord(StatesGroup):
-    waiting_for_cancle = State()
+class CancelRecord(StatesGroup):
+    waiting_for_cancel = State()
 
 class DisplayRecords(StatesGroup):
     waiting_for_display = State()

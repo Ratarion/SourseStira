@@ -1,13 +1,12 @@
 from aiogram.types import (InlineKeyboardMarkup,
                            InlineKeyboardButton)
 from datetime import datetime
-# ИМПОРТ: Добавлен cn
 from app.locales import ru, en, cn 
 
 # Объединяем словари локализации
 ALL_TEXTS = {**ru.RUtexts, **en.ENtexts, **cn.CNtexts} 
 
-# Словарь месяцев для календаря (если используется)
+# Словарь месяцев
 months = {
     1: {"RU": "Январь", "ENG": "January", "CN": "一月"},
     2: {"RU": "Февраль", "ENG": "February", "CN": "二月"},
@@ -23,7 +22,6 @@ months = {
     12: {"RU": "Декабрь", "ENG": "December", "CN": "十二月"}
 }
 
-# Клавиатура выбора языка
 kb_welcom = InlineKeyboardMarkup(inline_keyboard=[
     [
         InlineKeyboardButton(text='RU', callback_data='lang_RU'),
@@ -33,41 +31,51 @@ kb_welcom = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 def get_section_keyboard(lang: str) -> InlineKeyboardMarkup:
-    t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"]) # Дефолт - RU
+    t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            # Строка 1: Записаться
             [InlineKeyboardButton(text=t["record_laundry"], callback_data="record")],
-            # Строка 2: Показать записи
             [InlineKeyboardButton(text=t["show_records"], callback_data="show_records")],
-            # Строка 3: Отменить запись
             [InlineKeyboardButton(text=t["cancel_record"], callback_data="remove_records")],
-            # Строка 4: Репорт (О ошибки)
             [InlineKeyboardButton(text=t["report_in_admin"], callback_data="report")],
         ]
     )
 
 def get_exit_keyboard(lang: str) -> InlineKeyboardMarkup:
     t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text=t["exit"], callback_data="exit")
-            ],
-        ]
-    )
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t["exit"], callback_data="exit")]])
 
-# Клавиатура выбора года (функция getYaersButton переименована).
-def get_years_button(years: list, lang: str) -> InlineKeyboardMarkup:
+# --- Кылавиатура выбора года ---
+def get_years_keyboard(years: list, lang: str) -> InlineKeyboardMarkup:
     t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
-    yearsButton = [
-        [InlineKeyboardButton(text=f"{year}", callback_data=f"year_{year}")]
-        for year in years
-    ]
-    yearsButton.append([InlineKeyboardButton(text=t["exit"], callback_data="exit")])
-    return InlineKeyboardMarkup(inline_keyboard=yearsButton)
+    # Создаем список кнопок
+    years_buttons = []
+    for year in years:
+        years_buttons.append([InlineKeyboardButton(text=str(year), callback_data=f"year_{year}")])
+    
+    years_buttons.append([InlineKeyboardButton(text=t["exit"], callback_data="exit")])
+    return InlineKeyboardMarkup(inline_keyboard=years_buttons)
 
-# Клавиатура выбора времени.
+# --- Клавиатура выбора месяца ---
+def get_months_keyboard(year: int, lang: str) -> InlineKeyboardMarkup:
+    t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
+    buttons = []
+    
+    # Группируем месяцы по 3 в ряд для красоты
+    row = []
+    for num, names in months.items():
+        month_name = names.get(lang, names["RU"])
+        # Callback содержит: month_год_номерМесяца
+        row.append(InlineKeyboardButton(text=month_name, callback_data=f"month_{year}_{num}"))
+        if len(row) == 3:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+
+    buttons.append([InlineKeyboardButton(text=t["back"], callback_data="record")]) # Назад к годам
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 def get_time_slots_keyboard(date: datetime, slots: list[datetime], lang: str) -> InlineKeyboardMarkup:
     t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
     buttons = []
@@ -80,7 +88,6 @@ def get_time_slots_keyboard(date: datetime, slots: list[datetime], lang: str) ->
     buttons.append([InlineKeyboardButton(text=t["exit"], callback_data="exit")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-# Клавиатура выбора машины.
 def get_machines_keyboard(available_machines: list, lang: str) -> InlineKeyboardMarkup:
     t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
     buttons = [

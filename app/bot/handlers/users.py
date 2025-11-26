@@ -5,16 +5,19 @@ from aiogram.fsm.context import FSMContext
 from datetime import datetime, timedelta
 
 from app.locales import ru, en, cn
-# Обратите внимание на импорт нового состояния Auth
-from app.bot.states import Auth, AddRecord 
+from app.bot.states import Auth, AddRecord
+
+#Импорт клавы
 from app.bot.keyboards import (
     kb_welcom, 
     get_section_keyboard, 
     get_time_slots_keyboard, 
-    get_machines_keyboard
+    get_machines_keyboard,
+    get_years_keyboard,   
+    get_months_keyboard   
 )
 
-# Импортируем новые функции репозитория
+#Ипорт запросов
 from app.repositories.laundry_repo import (
     get_user_by_tg_id, 
     find_resident_by_fio,     
@@ -39,7 +42,6 @@ async def get_lang_and_texts(state: FSMContext) -> tuple[str, dict]:
 # ---------------------------------------------------------
 # ЛОГИКА ВЫБОРА ЯЗЫКА
 # ---------------------------------------------------------
-
 @user_router.message(CommandStart())
 async def cmd_start_initial(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -82,10 +84,7 @@ async def cmd_start_auth(message: Message, state: FSMContext):
         )
     else:
         # Если нет -> Просим ввести ФИО для поиска в базе
-        # Текст: "Введите ваше ФИО (Иванов Иван Иванович) для входа"
-        # (Вам возможно придется добавить ключи в словари локализации, если их нет)
-        welcome_text = t.get("auth_enter_fio", "Введите ФИО (Фамилия Имя Отчество) для авторизации:") 
-        await message.answer(welcome_text)
+        await message.answer(t["auth"])
         await state.set_state(Auth.waiting_for_fio)
 
 
@@ -94,20 +93,19 @@ async def process_fio_auth(message: Message, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
     text = message.text.strip()
     parts = text.split()
-    
-    # Простая валидация на 3 слова
-    if len(parts) < 3:
-        await message.answer(t["reg_fio_error"]) # "Введите полное ФИО..."
-        return
 
     # Поиск пользователя в базе по ФИО
     resident = await find_resident_by_fio(parts)
+
+    if len(parts) < 2:
+        await message.answer(t["write_FIO"])
+        return
 
     if resident:
         # Успех: ФИО найдено. Проверяем, не занят ли аккаунт (опционально)
         if resident.tg_id and resident.tg_id != message.from_user.id:
              # Если у этого ФИО уже есть ДРУГОЙ tg_id
-            await message.answer("Этот пользователь уже зарегистрирован с другого аккаунта Telegram.")
+            await message.answer(t["other_tg_id"])
             return
 
         # Привязываем текущий Telegram ID к найденному резиденту
@@ -121,10 +119,8 @@ async def process_fio_auth(message: Message, state: FSMContext):
         await state.update_data(lang=lang)
     
     else:
-        # Провал: ФИО не найдено. Просим ввести номер зачетки.
-        # Текст: "ФИО не найдено. Пожалуйста, введите номер зачетки/студенческого:"
-        error_text = t.get("auth_fio_fail", "Пользователь с таким ФИО не найден. Введите номер вашей зачетной книжки (только цифры):")
-        await message.answer(error_text)
+        # Провал: ФИО не найдено. Просим ввести номер зачетки. 
+        await message.answer(t["seek_cards"])
         await state.set_state(Auth.waiting_for_id_card)
 
 
@@ -157,9 +153,7 @@ async def process_id_card_auth(message: Message, state: FSMContext):
         await state.update_data(lang=lang)
     else:
         # Провал окончательный
-        # Текст: "Пользователь не найден. Обратитесь к администратору."
-        fail_text = t["none_user"]
-        await message.answer(fail_text)
+        await message.answer(t["none_user"])
         # Можно сбросить или оставить в ожидании ввода
         # await state.clear()
         
@@ -167,12 +161,62 @@ async def process_id_card_auth(message: Message, state: FSMContext):
 # ЛОГИКА ЗАПИСИ НА СТИРКУ (Локализовано)
 # ---------------------------------------------------------
 
+#Запись на стирку
+# 1. Начало записи: Выбор года
 @user_router.callback_query(F.data == "record")
 async def start_record(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    # Локализовано
-    await callback.message.answer(t["record_start"]) 
-    # await state.set_state(AddRecord.waiting_for_year)
+    
+    # Генерируем список: текущий год и следующий
+    current_year = datetime.now().year
+    years_list = [current_year, current_year + 1]
+
+    await state.set_state(AddRecord.waiting_for_year)
+    
+    # Текст: "Выберите дату" (или добавьте ключ "select_year" в словарь)
+    await callback.message.edit_text(
+        t["record_start"], 
+        reply_markup=get_years_keyboard(years_list, lang) 
+    )
+
+# 2. Обработка выбора года -> Выбор месяца
+@user_router.callback_query(F.data.startswith("year_"))
+async def process_year_selection(callback: CallbackQuery, state: FSMContext):
+    lang, t = await get_lang_and_texts(state)
+    
+    # Получаем год из callback (например, year_2024)
+    selected_year = int(callback.data.split("_")[1])
+    
+    # Сохраняем год в состояние
+    await state.update_data(year=selected_year)
+    await state.set_state(AddRecord.waiting_for_month)
+
+    # Показываем клавиатуру месяцев
+    # (Предположим, что нужен текст "Выберите месяц". Если его нет, используем record_start)
+    await callback.message.edit_text(
+        f"{t['record_start']} (Month)", # Лучше добавить ключ "choose_month" в словари
+        reply_markup=get_months_keyboard(selected_year, lang)
+    )
+
+# 3. Обработка выбора месяца -> Выбор дня (Календарь)
+@user_router.callback_query(F.data.startswith("month_"))
+async def process_month_selection(callback: CallbackQuery, state: FSMContext):
+    lang, t = await get_lang_and_texts(state)
+    
+    # callback: month_2024_5
+    parts = callback.data.split("_")
+    year = int(parts[1])
+    month = int(parts[2])
+
+    await state.update_data(month=month)
+    await state.set_state(AddRecord.waiting_for_day)
+    
+
+    await callback.message.edit_text(
+        f"Выбран {month}.{year}. Теперь выберите день (Функционал календаря дней).",
+        
+        SimpleCalendar().start_calendar()
+    )
 
 # Ваш код выбора дня
 @user_router.callback_query(F.data.startswith("day_"))
