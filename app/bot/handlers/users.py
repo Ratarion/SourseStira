@@ -1,8 +1,10 @@
 from aiogram import Router, F
+import asyncio
 from aiogram.filters import CommandStart
 from app.bot.calendar_utils import CustomLaundryCalendar
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest
 from datetime import datetime, date, timedelta
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
 try:
@@ -212,8 +214,6 @@ async def process_calendar_selection(callback: CallbackQuery, callback_data: Sim
     calendar_locale = locale_map.get(lang, 'ru')
 
     # --- СЦЕНАРИЙ 1: Навигация (<< >>) ---
-    # Проверяем, является ли действие сменой месяца или года
-    # В 0.6.0 действия это enum или строки. Проверим основные.
     nav_actions = [
         SimpleCalendarAction.PREV_MONTH, 
         SimpleCalendarAction.NEXT_MONTH,
@@ -221,15 +221,26 @@ async def process_calendar_selection(callback: CallbackQuery, callback_data: Sim
         SimpleCalendarAction.NEXT_YEAR
     ]
     
+    # Проверяем, является ли действие сменой месяца или года
     if callback_data.act in nav_actions:
-        # callback_data уже содержит НОВЫЙ год и месяц, куда пользователь кликнул
         new_year = callback_data.year
         new_month = callback_data.month
         
         # Генерируем новый календарь с точками для нового месяца
         markup = await get_colored_calendar(new_year, new_month, calendar_locale)
         
-        await callback.message.edit_text(t["record_start"], reply_markup=markup)
+        # ***Используем try/except для предотвращения ошибки "message is not modified" ***
+        try:
+            await callback.message.edit_text(t["record_start"], reply_markup=markup)
+            await callback.answer()
+        except TelegramBadRequest as e:
+            # Если сообщение не изменилось (например, нажали на тот же месяц)
+            if "message is not modified" in str(e):
+                await callback.answer(t["no_change_alert"] if "no_change_alert" in t else "Нет изменений.", show_alert=False)
+                return
+            else:
+                # Если это другая ошибка, выбрасываем её дальше
+                raise
         return
 
     # --- СЦЕНАРИЙ 2: Выбор дня (DAY) ---
@@ -274,6 +285,8 @@ async def process_calendar_selection(callback: CallbackQuery, callback_data: Sim
         
     # --- СЦЕНАРИЙ 3: Игнор или прочее ---
     else:
+        # Если action != DAY и action не в nav_actions, это, скорее всего, игнорируемая кнопка
+        # (например, пустая ячейка или кнопка месяца на уже выбранном месяце).
         # Например, клик по дням недели или заголовку
         await callback.answer()
 
@@ -336,6 +349,11 @@ async def process_time(callback: CallbackQuery, state: FSMContext):
 
     machines = await get_all_machines()
     available_machines = []
+
+    # Проверяем доступность машин параллельно
+    tasks = [is_slot_free(machine.id, chosen_dt) for machine in machines]
+    availability_results = await asyncio.gather(*tasks)
+
     for machine in machines:
         if await is_slot_free(machine.id, chosen_dt):
             available_machines.append(machine)
@@ -357,28 +375,28 @@ async def process_machine(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
     machine_id = int(callback.data.split("_")[1])
     data = await state.get_data()
+    duration_minutes: int=90
     start_time = data["start_time"]
-    end_time = start_time + timedelta(hours=2) # Предполагаем 2 часа стирки
+    end_time = start_time + timedelta(minutes=duration_minutes)
     
     user = await get_user_by_tg_id(callback.from_user.id)
 
     try:
-        booking = await create_booking(
+        result = await create_booking(
             user_id=user.id,
             machine_id=machine_id,
             start_time=start_time
         )
-        # Локализовано
+        
         await callback.message.edit_text(
             t["booking_success"].format(
-                machine_num=booking.machine.number_machine,
+                machine_num=result['machine'].number_machine,  # Используем machine из результата
                 start=start_time.strftime('%d.%m.%Y %H:%M'),
                 end=end_time.strftime('%H:%M')
             ),
             reply_markup=get_section_keyboard(lang)
         )
     except ValueError:
-        # Локализовано
         await callback.message.edit_text(t["booking_error"])
     
     await state.clear()

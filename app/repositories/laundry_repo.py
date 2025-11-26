@@ -1,4 +1,4 @@
-# app/repositories/laundry_repo.py
+import asyncio
 from datetime import datetime, timedelta
 from sqlalchemy import Integer
 from typing import List, Optional
@@ -104,17 +104,18 @@ async def get_all_machines() -> List[Machine]:
 async def is_slot_free(
     machine_id: int,
     date: datetime,
-    duration_minutes: int = 90  # стирка — 1 час 30 минут
+    duration_minutes: int = 90
 ) -> bool:
     end_time = date + timedelta(minutes=duration_minutes)
 
     async with async_session() as session:
         result = await session.execute(
-            select(Booking).where(
+            select(Booking.id).where(
                 Booking.inidmachine == machine_id,
                 Booking.start_time < end_time,
-                Booking.end_time > date
-            )
+                Booking.end_time > date,
+                Booking.status != 'cancelled'  # Игнорируем отмененные брони
+            ).limit(1)
         )
         overlapping = result.scalar_one_or_none()
         return overlapping is None
@@ -128,19 +129,39 @@ async def get_available_slots(
 ) -> List[datetime]:
     """Возвращает список доступных начал слотов на указанную дату"""
     available = []
-
+    
     current = date.replace(hour=work_start, minute=0, second=0, microsecond=0)
     end_of_day = date.replace(hour=work_end, minute=0, second=0, microsecond=0)
 
+    # Получаем все машины одним запросом
     machines = await get_all_machines()
-
+    
+    # Создаем задачи для проверки слотов
+    tasks = []
     while current + timedelta(minutes=slot_duration) <= end_of_day:
-        # Если хотя бы одна машина свободна — слот доступен
+        slot_time = current
+        # Проверяем для каждой машины
         for machine in machines:
-            if await is_slot_free(machine.id, current, slot_duration):
-                available.append(current)
-                break  # нашли свободную — дальше не проверяем (для списка времени)
+            tasks.append(is_slot_free(machine.id, slot_time, slot_duration))
         current += timedelta(minutes=slot_duration)
+    
+    # Выполняем все проверки параллельно
+    results = await asyncio.gather(*tasks)
+    
+    # Обрабатываем результаты
+    current = date.replace(hour=work_start, minute=0, second=0, microsecond=0)
+    result_index = 0
+    
+    while current + timedelta(minutes=slot_duration) <= end_of_day:
+        # Проверяем, есть ли хотя бы одна свободная машина в этом слоте
+        machines_count = len(machines)
+        slot_results = results[result_index:result_index + machines_count]
+        
+        if any(slot_results):
+            available.append(current)
+        
+        current += timedelta(minutes=slot_duration)
+        result_index += machines_count
 
     return available
 
@@ -153,12 +174,11 @@ async def create_booking(
     user_id: int,
     machine_id: int,
     start_time: datetime,
-    duration_minutes: int = 120
-) -> Booking:
+    duration_minutes: int = 90
+) -> dict:  # Возвращаем словарь вместо объекта Booking
     async with async_session() as session:
         end_time = start_time + timedelta(minutes=duration_minutes)
 
-        # Если слот уже занят — выбросит исключение
         if not await is_slot_free(machine_id, start_time, duration_minutes):
             raise ValueError("Слот уже занят")
 
@@ -167,12 +187,22 @@ async def create_booking(
             inidmachine=machine_id,
             start_time=start_time,
             end_time=end_time,
-            status="active" # Добавил статус явно, если поле nullable=True
+            status="active"
         )
         session.add(booking)
         await session.commit()
         await session.refresh(booking)
-        return booking
+        
+        # Получаем информацию о машине
+        machine_result = await session.execute(
+            select(Machine).where(Machine.id == machine_id)
+        )
+        machine = machine_result.scalar_one()
+        
+        return {
+            'booking': booking,
+            'machine': machine
+        }
 
 
 async def get_user_bookings(tg_id: int) -> List[Booking]:

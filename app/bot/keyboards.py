@@ -52,3 +52,16 @@ def get_machines_keyboard(available_machines: list, lang: str) -> InlineKeyboard
     ]
     buttons.append([InlineKeyboardButton(text=t["back"], callback_data="back_to_time")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_time_slots_keyboard(date: datetime, slots: list[datetime], lang: str) -> InlineKeyboardMarkup:
+    t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
+    buttons = []
+    for slot in slots:
+        text = slot.strftime("%H:%M")
+        # Используем новый формат callback_data
+        callback = f"time_{date.year}_{date.month}_{date.day}_{slot.hour}"
+        buttons.append([InlineKeyboardButton(text=text, callback_data=callback)])
+
+    buttons.append([InlineKeyboardButton(text=t["back"], callback_data="back_to_calendar")])
+    buttons.append([InlineKeyboardButton(text=t["exit"], callback_data="exit")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
