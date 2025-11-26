@@ -18,8 +18,7 @@ class DisplayRecords(StatesGroup):
     waiting_for_display = State()
 
 
-# --- Регистрация ---
-class Registration(StatesGroup):
-    waiting_for_fio = State()      # Ждем ФИО
-    waiting_for_room = State()     # Ждем комнату
-    waiting_for_id_card = State()  # Ждем номер зачетки
+# --- Аунтификация ---
+class Auth(StatesGroup):
+    waiting_for_fio = State()      # Ждем ФИО для проверки
+    waiting_for_id_card = State()  # Если ФИО нет, ждем зачетку

@@ -5,8 +5,8 @@ from aiogram.fsm.context import FSMContext
 from datetime import datetime, timedelta
 
 from app.locales import ru, en, cn
-
-from app.bot.states import Registration, AddRecord
+# Обратите внимание на импорт нового состояния Auth
+from app.bot.states import Auth, AddRecord 
 from app.bot.keyboards import (
     kb_welcom, 
     get_section_keyboard, 
@@ -14,9 +14,12 @@ from app.bot.keyboards import (
     get_machines_keyboard
 )
 
+# Импортируем новые функции репозитория
 from app.repositories.laundry_repo import (
     get_user_by_tg_id, 
-    create_new_user,
+    find_resident_by_fio,      # НОВАЯ
+    find_resident_by_id_card,  # НОВАЯ
+    activate_resident_user,    # НОВАЯ
     get_available_slots, 
     get_all_machines, 
     is_slot_free, 
@@ -25,16 +28,11 @@ from app.repositories.laundry_repo import (
 
 user_router = Router()
 
-# Объединяем словари локализации в один объект
 ALL_TEXTS = {**ru.RUtexts, **en.ENtexts, **cn.CNtexts}
 
-
-# --- Вспомогательная функция для получения языка и текстов ---
 async def get_lang_and_texts(state: FSMContext) -> tuple[str, dict]:
-    """Получает текущий язык и словарь текстов. По умолчанию RU."""
     data = await state.get_data()
     lang = data.get('lang', 'RU')
-    # Используем ALL_TEXTS
     return lang, ALL_TEXTS.get(lang, ALL_TEXTS['RU'])
 
 
@@ -68,83 +66,107 @@ async def set_language(callback: CallbackQuery, state: FSMContext):
 # ЛОГИКА РЕГИСТРАЦИИ (Локализовано)
 # ---------------------------------------------------------
 
+# ---------------------------------------------------------
+# ЛОГИКА АУТЕНТИФИКАЦИИ (БЕЗ РЕГИСТРАЦИИ НОВОГО)
+# ---------------------------------------------------------
+
 async def cmd_start_registered(message: Message, state: FSMContext):
     tg_id = message.from_user.id
+    
+    # 1. Проверяем, привязан ли уже этот ТГ к кому-то
     existing_user = await get_user_by_tg_id(tg_id)
     
     lang, t = await get_lang_and_texts(state)
 
     if existing_user:
+        # Если пользователь уже активирован -> Главное меню
         await message.answer(
             f"{t['hello_user'].replace('{name}', existing_user.first_name)}", 
             reply_markup=get_section_keyboard(lang)
         )
     else:
-        # Локализованный текст reg_start
-        await message.answer(t["reg_start"])
-        await state.set_state(Registration.waiting_for_fio)
+        # Если нет -> Просим ввести ФИО для поиска в базе
+        # Текст: "Введите ваше ФИО (Иванов Иван Иванович) для входа"
+        # (Вам возможно придется добавить ключи в словари локализации, если их нет)
+        welcome_text = t.get("auth_enter_fio", "Введите ФИО (Фамилия Имя Отчество) для авторизации:") 
+        await message.answer(welcome_text)
+        await state.set_state(Auth.waiting_for_fio)
 
 
-@user_router.message(Registration.waiting_for_fio)
-async def process_fio(message: Message, state: FSMContext):
+@user_router.message(Auth.waiting_for_fio)
+async def process_fio_auth(message: Message, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
     text = message.text.strip()
     parts = text.split()
     
+    # Простая валидация на 3 слова
     if len(parts) < 3:
-        # Локализовано
-        await message.answer(t["reg_fio_error"])
+        await message.answer(t["reg_fio_error"]) # "Введите полное ФИО..."
         return
 
-    await state.update_data(fio=parts)
-    # Локализовано
-    await message.answer(t["reg_room_prompt"])
-    await state.set_state(Registration.waiting_for_room)
+    # Поиск пользователя в базе по ФИО
+    resident = await find_resident_by_fio(parts)
 
-@user_router.message(Registration.waiting_for_room)
-async def process_room(message: Message, state: FSMContext):
-    lang, t = await get_lang_and_texts(state)
-    if not message.text.isdigit():
-        # Локализовано
-        await message.answer(t["reg_room_error"])
-        return
+    if resident:
+        # Успех: ФИО найдено. Проверяем, не занят ли аккаунт (опционально)
+        if resident.tg_id and resident.tg_id != message.from_user.id:
+             # Если у этого ФИО уже есть ДРУГОЙ tg_id
+            await message.answer("Этот пользователь уже зарегистрирован с другого аккаунта Telegram.")
+            return
 
-    await state.update_data(room=int(message.text))
-    # Локализовано
-    await message.answer(t["reg_id_prompt"])
-    await state.set_state(Registration.waiting_for_id_card)
-
-@user_router.message(Registration.waiting_for_id_card)
-async def process_id_card(message: Message, state: FSMContext):
-    lang, t = await get_lang_and_texts(state)
-    if not message.text.isdigit():
-        # Локализовано
-        await message.answer(t["reg_id_error"])
-        return
-
-    data = await state.get_data()
-    tg_id = message.from_user.id
-    
-    try:
-        await create_new_user(
-            tg_id=tg_id,
-            fio=data['fio'],
-            room=data['room'],
-            id_card=int(message.text)
-        )
-        # Локализовано
+        # Привязываем текущий Telegram ID к найденному резиденту
+        await activate_resident_user(resident.id, message.from_user.id)
+        
         await message.answer(
-            t["reg_success"],
+            f"{t['hello_user'].replace('{name}', resident.first_name)}", 
             reply_markup=get_section_keyboard(lang)
         )
         await state.clear()
         await state.update_data(lang=lang)
-    except Exception as e:
-        # Локализовано
-        error_message = str(e).split('>')[1] if '<class' in str(e) else str(e)
-        await message.answer(f"{t['reg_db_error']}{error_message}")
+    
+    else:
+        # Провал: ФИО не найдено. Просим ввести номер зачетки.
+        # Текст: "ФИО не найдено. Пожалуйста, введите номер зачетки/студенческого:"
+        error_text = t.get("auth_fio_fail", "Пользователь с таким ФИО не найден. Введите номер вашей зачетной книжки (только цифры):")
+        await message.answer(error_text)
+        await state.set_state(Auth.waiting_for_id_card)
 
 
+@user_router.message(Auth.waiting_for_id_card)
+async def process_id_card_auth(message: Message, state: FSMContext):
+    lang, t = await get_lang_and_texts(state)
+    
+    if not message.text.isdigit():
+        await message.answer(t["reg_id_error"]) # "Только цифры..."
+        return
+
+    id_card_num = int(message.text)
+    
+    # Поиск по зачетке
+    resident = await find_resident_by_id_card(id_card_num)
+
+    if resident:
+         # Успех
+        if resident.tg_id and resident.tg_id != message.from_user.id:
+            await message.answer("Этот пользователь уже зарегистрирован с другого аккаунта.")
+            return
+
+        await activate_resident_user(resident.id, message.from_user.id)
+        
+        await message.answer(
+            f"{t['hello_user'].replace('{name}', resident.first_name)}", 
+            reply_markup=get_section_keyboard(lang)
+        )
+        await state.clear()
+        await state.update_data(lang=lang)
+    else:
+        # Провал окончательный
+        # Текст: "Пользователь не найден. Обратитесь к администратору."
+        fail_text = t.get("auth_fail_final", "Данные не найдены в системе. Обратитесь к администратору.")
+        await message.answer(fail_text)
+        # Можно сбросить или оставить в ожидании ввода
+        # await state.clear()
+        
 # ---------------------------------------------------------
 # ЛОГИКА ЗАПИСИ НА СТИРКУ (Локализовано)
 # ---------------------------------------------------------
