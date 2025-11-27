@@ -342,9 +342,22 @@ async def process_day(callback: CallbackQuery, state: FSMContext):
 @user_router.callback_query(F.data.startswith("time_"))
 async def process_time(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    _, y, m, d, h = callback.data.split("_")
-    chosen_dt = datetime(int(y), int(m), int(d), int(h))
+    
+    # Новый код: Теперь ожидаем 6 частей: _, y, m, d, h, min
+    parts = callback.data.split("_")
+    
+    # Проверка, что частей достаточно (минимум 6)
+    if len(parts) < 6:
+        await callback.answer(t.get("time_select_error", "Ошибка формата времени. Попробуйте снова."), show_alert=True)
+        return
 
+    try:
+        y, m, d, h, min_val = int(parts[1]), int(parts[2]), int(parts[3]), int(parts[4]), int(parts[5])
+        chosen_dt = datetime(y, m, d, h, min_val) # Используем минуты
+    except ValueError:
+        await callback.answer(t.get("time_select_error", "Неверный формат числа."), show_alert=True)
+        return
+        
     await state.update_data(start_time=chosen_dt)
 
     machines = await get_all_machines()
@@ -355,6 +368,7 @@ async def process_time(callback: CallbackQuery, state: FSMContext):
     availability_results = await asyncio.gather(*tasks)
 
     for machine in machines:
+        # Используем результаты параллельной проверки
         if await is_slot_free(machine.id, chosen_dt):
             available_machines.append(machine)
 
@@ -368,6 +382,7 @@ async def process_time(callback: CallbackQuery, state: FSMContext):
         t["machine_prompt"].replace("{datetime}", chosen_dt.strftime('%d.%m %H:%M')),
         reply_markup=get_machines_keyboard(available_machines, lang)
     )
+
 
 # Код создания брони
 @user_router.callback_query(F.data.startswith("machine_"))

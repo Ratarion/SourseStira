@@ -1,6 +1,6 @@
 from aiogram.types import (InlineKeyboardMarkup,
                            InlineKeyboardButton)
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.locales import ru, en, cn 
 
 # Объединяем словари локализации
@@ -53,13 +53,22 @@ def get_machines_keyboard(available_machines: list, lang: str) -> InlineKeyboard
     buttons.append([InlineKeyboardButton(text=t["back"], callback_data="back_to_time")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
+#Вывод промежутка времени 8:00-9:30
 def get_time_slots_keyboard(date: datetime, slots: list[datetime], lang: str) -> InlineKeyboardMarkup:
     t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
     buttons = []
+
+    DURATION = timedelta(minutes=90) # Длительность одной записи - 90 минут
+
     for slot in slots:
-        text = slot.strftime("%H:%M")
+        start_time = slot
+        end_time = start_time + DURATION
+
+        # Формат времени: "08:00 - 09:30"
+        text = f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}"
+
         # Используем новый формат callback_data
-        callback = f"time_{date.year}_{date.month}_{date.day}_{slot.hour}"
+        callback = f"time_{date.year}_{date.month}_{date.day}_{slot.hour}_{slot.minute}"
         buttons.append([InlineKeyboardButton(text=text, callback_data=callback)])
 
     buttons.append([InlineKeyboardButton(text=t["back"], callback_data="back_to_calendar")])
