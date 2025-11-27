@@ -1,48 +1,77 @@
 # app/bot/calendar_utils.py
 from datetime import datetime
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
+from aiogram.filters.callback_data import CallbackData
 
+class CustomLaundryCalendarCallback(CallbackData, prefix="custom_laundry_calendar"):
+    act: str
+    year: int
+    month: int
+    day: int
+
+# Изменения в calendar_utils.py (Календарь)
 class CustomLaundryCalendar(SimpleCalendar):
+    calendar_callback = CustomLaundryCalendarCallback
+
     def __init__(self, workload: dict, max_capacity: int, locale: str = 'ru'):
-        # Передаем show_alerts=True, чтобы библиотека сама не глушила навигацию, если мы этого не хотим
         super().__init__(locale=locale, show_alerts=True)
         self.workload = workload
         self.max_capacity = max_capacity
+        self._current_year = datetime.now().year
+        self._current_month = datetime.now().month
 
     async def start_calendar(self, year: int = datetime.now().year, month: int = datetime.now().month) -> InlineKeyboardMarkup:
-        # 1. Генерируем стандартный календарь
+        year = self._current_year
+        month = self._current_month
+        
         markup = await super().start_calendar(year, month)
         
-        # 2. Модифицируем кнопки дней
         new_inline_keyboard = []
         
         for row in markup.inline_keyboard:
             new_row = []
             for btn in row:
-                # Проверяем, что это кнопка дня (текст - число)
-                # И callback_data не является игнорируемым (например, пустые дни)
                 if btn.text.isdigit() and btn.callback_data:
                     day = int(btn.text)
-                    
-                    # Данные о загрузке
                     used = self.workload.get(day, 0)
-                    # Если capacity 0 (нет машин), то свободных 0
                     free = self.max_capacity - used if self.max_capacity > 0 else 0
                     
-                    # Логика раскраски
                     if free <= 0:
-                        btn.text = f"{day} 🔴"  # Занято
-                        # Опционально: можно сделать кнопку неактивной для нажатия,
-                        # но лучше оставить, чтобы вывести алерт "Мест нет"
+                        btn.text = f"{day} 🔴"
                     elif used == 0:
-                        btn.text = f"{day} 🟢"  # Свободно
+                        btn.text = f"{day} 🟢"
                     else:
-                        # Частично занято (можно добавить кол-во мест, но текст может не влезть)
                         btn.text = f"{day} 🟡" 
                 
                 new_row.append(btn)
             new_inline_keyboard.append(new_row)
+            
+        header_row = markup.inline_keyboard[0]
+        month_year_button = header_row[1]
         
-        markup.inline_keyboard = new_inline_keyboard
-        return markup
+        new_header_row = [
+             InlineKeyboardButton(text=month_year_button.text, callback_data='ignore_nav')
+        ]
+        
+        final_inline_keyboard = [new_header_row]
+        
+        for row in markup.inline_keyboard[1:]:
+            new_row = []
+            for btn in row:
+                if btn.text.isdigit() and btn.callback_data:
+                    day = int(btn.text)
+                    used = self.workload.get(day, 0)
+                    free = self.max_capacity - used if self.max_capacity > 0 else 0
+                    
+                    if free <= 0:
+                        btn.text = f"{day} 🔴"
+                    elif used == 0:
+                        btn.text = f"{day} 🟢"
+                    else:
+                        btn.text = f"{day} 🟡"
+                
+                new_row.append(btn)
+            final_inline_keyboard.append(new_row)
+
+        return InlineKeyboardMarkup(inline_keyboard=final_inline_keyboard)

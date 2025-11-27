@@ -10,9 +10,13 @@ RUtexts = {
         "exit": "Выйти",
         "back": "Назад",
         "machine_type": "Машина",
+        "select_machine_type": "Выберите тип машины",
         # Запись
         "record_start": "Выберите дату",
         "slots_none": "На {date} нет свободных слотов",
+        "machine_type_wash": "Стиральная",
+        "machine_type_dry": "Сушильная",
+        "no_active_machines_type": "Нет работающих машин выбранного типа!",
         "time_prompt": "Выберите время на {date}:",
         "machines_none": "Упс! Все машины заняты в это время.",
         "machine_prompt": "Выберите стиральную машину на {datetime}:",

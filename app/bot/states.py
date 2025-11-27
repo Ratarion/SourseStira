@@ -2,11 +2,11 @@ from aiogram.fsm.state import StatesGroup, State
 
 # --- Запись на стирку ---
 class AddRecord(StatesGroup):
-    waiting_for_year = State()
-    waiting_for_month = State()
+    waiting_for_machine_type = State() 
     waiting_for_day = State()
     waiting_for_time = State()
-
+    waiting_for_machine = State()
+    
 # --- Вход ---
 class Welcome(StatesGroup):
     waiting_for_client = State()

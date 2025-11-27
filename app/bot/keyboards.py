@@ -14,6 +14,18 @@ kb_welcom = InlineKeyboardMarkup(inline_keyboard=[
     ]
 ])
 
+# Клавиатура для выбора типа машины: стирка или сушка.
+def get_machine_type_keyboard(lang: str) -> InlineKeyboardMarkup:
+    t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            # callback_data: type_WASH (стирка) или type_DRY (сушка)
+            [InlineKeyboardButton(text=t["machine_type_wash"], callback_data="type_WASH")],
+            [InlineKeyboardButton(text=t["machine_type_dry"], callback_data="type_DRY")],
+            [InlineKeyboardButton(text=t["back"], callback_data="back_to_sections")] # Назад в главное меню
+        ]
+    )
+
 def get_section_keyboard(lang: str) -> InlineKeyboardMarkup:
     t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
     return InlineKeyboardMarkup(
@@ -29,17 +41,6 @@ def get_exit_keyboard(lang: str) -> InlineKeyboardMarkup:
     t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t["exit"], callback_data="exit")]])
 
-def get_time_slots_keyboard(date: datetime, slots: list[datetime], lang: str) -> InlineKeyboardMarkup:
-    t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
-    buttons = []
-    for slot in slots:
-        text = slot.strftime("%H:%M")
-        callback = f"time_{date.year}_{date.month}_{date.day}_{slot.hour}"
-        buttons.append([InlineKeyboardButton(text=text, callback_data=callback)])
-
-    buttons.append([InlineKeyboardButton(text=t["back"], callback_data="back_to_calendar")])
-    buttons.append([InlineKeyboardButton(text=t["exit"], callback_data="exit")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_machines_keyboard(available_machines: list, lang: str) -> InlineKeyboardMarkup:
     t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])

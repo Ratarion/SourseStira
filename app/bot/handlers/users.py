@@ -28,21 +28,27 @@ from app.bot.keyboards import (
     get_section_keyboard, 
     get_time_slots_keyboard, 
     get_machines_keyboard,
+    get_exit_keyboard,
+    get_machine_type_keyboard
 )
 
 #Ипорт запросов
 from app.repositories.laundry_repo import (
     get_user_by_tg_id, 
+    get_user_bookings,
     find_resident_by_fio,     
     find_resident_by_id_card,  
     activate_resident_user,    
-    get_available_slots, 
+    get_available_slots,
+    get_available_machines,
     get_all_machines, 
-    is_slot_free, 
+    is_slot_free,
     create_booking,
     get_month_workload, 
-    get_total_daily_capacity
+    get_total_daily_capacity_by_type
 )
+
+
 
 user_router = Router()
 
@@ -179,7 +185,7 @@ async def process_id_card_auth(message: Message, state: FSMContext):
 # Вспомогательная функция для генерации календаря с данными
 async def get_colored_calendar(year: int, month: int, locale: str):
     workload = await get_month_workload(year, month)
-    max_slots = await get_total_daily_capacity()
+    max_slots = await get_total_daily_capacity_by_type()
     
     calendar = CustomLaundryCalendar(
         workload=workload,
@@ -191,228 +197,200 @@ async def get_colored_calendar(year: int, month: int, locale: str):
 
 # 1. Начало записи
 @user_router.callback_query(F.data == "record")
-async def start_record(callback: CallbackQuery, state: FSMContext):
+async def process_record_start(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    await state.set_state(AddRecord.waiting_for_day)
+
+    # Проверка работоспособности машин перед выбором типа
+    max_capacity = await get_total_daily_capacity_by_type()  # Исправлено: используем функцию без типа, но ниже адаптируем для типа
+    if max_capacity == 0:
+        await callback.answer(t["no_active_machines"], show_alert=True)
+        await callback.message.edit_text(t["section_menu_title"], reply_markup=get_section_keyboard(lang))
+        await state.clear()
+        return
+
+    await state.update_data(max_capacity=max_capacity)
+
+    await callback.message.edit_text(
+        t["select_machine_type"],
+        reply_markup=get_machine_type_keyboard(lang)
+    )
+    await state.set_state(AddRecord.waiting_for_machine_type)
+    await callback.answer()
+
+
+@user_router.callback_query(F.data.startswith("type_"), AddRecord.waiting_for_machine_type)
+async def process_machine_type(callback: CallbackQuery, state: FSMContext):
+    lang, t = await get_lang_and_texts(state)
+    machine_type_code = callback.data.split("_")[1]
     
-    locale_map = {'RU': 'ru', 'ENG': 'en', 'CN': 'ru'}
-    calendar_locale = locale_map.get(lang, 'ru')
-    
+    # Определяем тип для БД
+    type_map = {'WASH': 'Стирка', 'DRY': 'Сушка'}
+    machine_type_db = type_map.get(machine_type_code, 'Стирка')
+
+    # Проверка работоспособности для выбранного типа
+    max_capacity = await get_total_daily_capacity_by_type(machine_type_db)
+    if max_capacity == 0:
+        await callback.answer(t["no_active_machines_type"], show_alert=True)
+        await callback.message.edit_text(
+            t["select_machine_type"], 
+            reply_markup=get_machines_keyboard(lang)
+        )
+        return
+
+    await state.update_data(
+        machine_type=machine_type_db,
+        max_capacity=max_capacity
+    )
+    # Получаем загруженность месяца и max capacity для индикаторов в календаре
     today = datetime.now()
+    workload = await get_month_workload(today.year, today.month, machine_type)
+    max_capacity = await get_total_daily_capacity_by_type(machine_type)
     
-    # Генерируем "умный" календарь
-    markup = await get_colored_calendar(today.year, today.month, calendar_locale)
+    now = datetime.now()
+    year = now.year
+    month = now.month
 
-    await callback.message.edit_text(t["record_start"], reply_markup=markup)
-
+    workload = await get_month_workload(year, month, machine_type_db)
+    
+    # Создаём кастомный календарь с индикаторами (🟢/🟡/🔴)
+    calendar = CustomLaundryCalendar(workload=workload, max_capacity=max_capacity, locale=lang.lower() if lang in ['ru', 'en', 'cn'] else 'ru')
+    
+    await callback.message.edit_text(
+        t["record_start"],
+        reply_markup=await calendar.start_calendar(today.year, today.month)
+    )
+    
+    await state.set_state(AddRecord.waiting_for_day)
+    await callback.answer()
 
 # 2. ЕДИНЫЙ Хендлер для календаря (и выбор дня, и навигация)
-@user_router.callback_query(SimpleCalendarCallback.filter(), AddRecord.waiting_for_day)
-async def process_calendar_selection(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
+@user_router.callback_query(CustomLaundryCalendar.calendar_callback.filter(), AddRecord.waiting_for_day)
+async def process_simple_calendar(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    locale_map = {'RU': 'ru', 'ENG': 'en', 'CN': 'ru'}
-    calendar_locale = locale_map.get(lang, 'ru')
-
-    # --- СЦЕНАРИЙ 1: Навигация (<< >>) ---
-    nav_actions = [
-        SimpleCalendarAction.PREV_MONTH, 
-        SimpleCalendarAction.NEXT_MONTH,
-        SimpleCalendarAction.PREV_YEAR, 
-        SimpleCalendarAction.NEXT_YEAR
-    ]
+    data = await state.get_data()
+    max_capacity = data.get('max_capacity', 0)
+    machine_type_db = data['machine_type']
     
-    # Проверяем, является ли действие сменой месяца или года
-    if callback_data.act in nav_actions:
-        new_year = callback_data.year
-        new_month = callback_data.month
-        
-        # Генерируем новый календарь с точками для нового месяца
-        markup = await get_colored_calendar(new_year, new_month, calendar_locale)
-        
-        # ***Используем try/except для предотвращения ошибки "message is not modified" ***
-        try:
-            await callback.message.edit_text(t["record_start"], reply_markup=markup)
-            await callback.answer()
-        except TelegramBadRequest as e:
-            # Если сообщение не изменилось (например, нажали на тот же месяц)
-            if "message is not modified" in str(e):
-                await callback.answer(t["no_change_alert"] if "no_change_alert" in t else "Нет изменений.", show_alert=False)
+    workload = await get_month_workload(callback_data.year, callback_data.month, machine_type_db)
+    
+    calendar = CustomLaundryCalendar(workload=workload, max_capacity=max_capacity, locale=lang.lower())
+    
+    selected, date = await calendar.process_selection(callback, callback_data)
+
+    if selected:
+        if callback_data.action == SimpleCalendarAction.DAY:
+            if date.date() < datetime.now().date():
+                await callback.answer(t["past_date_error"], show_alert=True)
                 return
-            else:
-                # Если это другая ошибка, выбрасываем её дальше
-                raise
-        return
+            
+            day = date.day
+            used = workload.get(day, 0)
+            free = max_capacity - used if max_capacity > 0 else 0
 
-    # --- СЦЕНАРИЙ 2: Выбор дня (DAY) ---
-    if callback_data.act == SimpleCalendarAction.DAY:
-        # Получаем объект даты
-        # Используем calendar_utils (наш класс) просто чтобы распарсить, 
-        # но проще собрать дату вручную, так как данные у нас на руках
-        chosen_date = datetime(callback_data.year, callback_data.month, callback_data.day)
-        
-        # Проверка на прошлое
-        if chosen_date.date() < date.today():
-             await callback.answer("Нельзя выбрать дату в прошлом!", show_alert=True)
-             # Перерисовываем календарь (чтобы не завис лоадинг), тот же самый месяц
-             markup = await get_colored_calendar(callback_data.year, callback_data.month, calendar_locale)
-             await callback.message.edit_text(t["record_start"], reply_markup=markup)
-             return
-
-        # Проверка занятости (финальная, перед открытием слотов)
-        workload = await get_month_workload(chosen_date.year, chosen_date.month)
-        max_slots = await get_total_daily_capacity()
-        used = workload.get(chosen_date.day, 0)
-        
-        if used >= max_slots and max_slots > 0:
-            await callback.answer("На этот день мест нет 🔴", show_alert=True)
+            if free <= 0:
+                await callback.answer(t["day_fully_booked"], show_alert=True)
+                await callback.message.edit_text(
+                    t["select_date_prompt"], 
+                    reply_markup=await calendar.start_calendar(callback_data.year, callback_data.month)
+                )
+                return
+                
+            await state.update_data(chosen_date=date)
+            
+            # Адаптируем get_available_slots для типа машины (нужно реализовать в laundry_repo)
+            slots = await get_available_slots(date, machine_type=machine_type_db)
+            
+            if not slots:
+                await callback.answer(t["no_slots_available"], show_alert=True)
+                await callback.message.edit_text(
+                    t["select_date_prompt"], 
+                    reply_markup=await calendar.start_calendar(callback_data.year, callback_data.month)
+                )
+                return
+            
+            await callback.message.edit_text(
+                t["select_time_prompt"].replace("{date}", date.strftime("%d.%m")),
+                reply_markup=get_time_slots_keyboard(date, slots, lang)
+            )
+            await state.set_state(AddRecord.waiting_for_time)
+            await callback.answer()
             return
-
-        # Успех: переходим к выбору времени
-        await state.update_data(chosen_date=chosen_date)
-        await state.set_state(AddRecord.waiting_for_time)
-
-        # Получаем слоты (ваша старая функция)
-        available_slots = await get_available_slots(chosen_date)
-
-        if not available_slots:
-            await callback.answer("Нет свободных слотов (проверка по времени)", show_alert=True)
-            return
-
-        await callback.message.edit_text(
-            t["time_prompt"].replace("{date}", chosen_date.strftime('%d.%m')),
-            reply_markup=get_time_slots_keyboard(chosen_date, available_slots, lang)
-        )
-        
-    # --- СЦЕНАРИЙ 3: Игнор или прочее ---
+            
+        await callback.answer()
     else:
-        # Если action != DAY и action не в nav_actions, это, скорее всего, игнорируемая кнопка
-        # (например, пустая ячейка или кнопка месяца на уже выбранном месяце).
-        # Например, клик по дням недели или заголовку
         await callback.answer()
 
-
-# 2. Обработка выбора месяца -> Выбор дня (Календарь)
-@user_router.callback_query(F.data.startswith("month_"))
-async def process_month_selection(callback: CallbackQuery, state: FSMContext):
-    lang, t = await get_lang_and_texts(state)
-    
-    # callback: month_2024_5
-    parts = callback.data.split("_")
-    year = int(parts[1])
-    month = int(parts[2])
-
-    await state.update_data(month=month)
-    await state.set_state(AddRecord.waiting_for_day)
-    
-
-    await callback.message.edit_text(
-        f"Выбран {month}.{year}. Теперь выберите день (Функционал календаря дней).",
-        
-        SimpleCalendar().start_calendar()
-    )
-
-# Код выбора дня
-@user_router.callback_query(F.data.startswith("day_"))
-async def process_day(callback: CallbackQuery, state: FSMContext):
-    lang, t = await get_lang_and_texts(state)
-    _, year, month, day = callback.data.split("_")
-    date = datetime(int(year), int(month), int(day))
-
-    await state.update_data(chosen_date=date.date())
-
-    slots = await get_available_slots(date)
-    if not slots:
-        # Локализовано
-        await callback.message.edit_text(
-            t["slots_none"].replace("{date}", date.strftime('%d.%m.%Y')),
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=t["back"], callback_data="back_to_month")]
-            ])
-        )
-        return
-
-    # Локализовано
-    await callback.message.edit_text(
-        t["time_prompt"].replace("{date}", date.strftime('%d.%m.%Y')),
-        reply_markup=get_time_slots_keyboard(date, slots, lang)
-    )
-    await state.set_state(AddRecord.waiting_for_time)
-
 # Код выбора времени
-@user_router.callback_query(F.data.startswith("time_"))
-async def process_time(callback: CallbackQuery, state: FSMContext):
+@user_router.callback_query(F.data.startswith("time_"), AddRecord.waiting_for_time)
+async def process_time_slot(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
+    data = await state.get_data()
     
-    # Новый код: Теперь ожидаем 6 частей: _, y, m, d, h, min
     parts = callback.data.split("_")
+    year, month, day, hour, minute = map(int, parts[1:])
+    chosen_dt = datetime(year, month, day, hour, minute)
     
-    # Проверка, что частей достаточно (минимум 6)
-    if len(parts) < 6:
-        await callback.answer(t.get("time_select_error", "Ошибка формата времени. Попробуйте снова."), show_alert=True)
-        return
-
-    try:
-        y, m, d, h, min_val = int(parts[1]), int(parts[2]), int(parts[3]), int(parts[4]), int(parts[5])
-        chosen_dt = datetime(y, m, d, h, min_val) # Используем минуты
-    except ValueError:
-        await callback.answer(t.get("time_select_error", "Неверный формат числа."), show_alert=True)
-        return
-        
     await state.update_data(start_time=chosen_dt)
 
-    machines = await get_all_machines()
-    available_machines = []
-
-    # Проверяем доступность машин параллельно
-    tasks = [is_slot_free(machine.id, chosen_dt) for machine in machines]
-    availability_results = await asyncio.gather(*tasks)
-
-    for machine in machines:
-        # Используем результаты параллельной проверки
-        if await is_slot_free(machine.id, chosen_dt):
-            available_machines.append(machine)
+    machine_type_db = data['machine_type']
+    available_machines = await get_available_machines(chosen_dt, machine_type_db)
 
     if not available_machines:
-        # Локализовано
+        await callback.answer(t["no_available_slots_alert"], show_alert=True)
         await callback.message.edit_text(t["machines_none"])
         return
 
-    # Локализовано
     await callback.message.edit_text(
         t["machine_prompt"].replace("{datetime}", chosen_dt.strftime('%d.%m %H:%M')),
         reply_markup=get_machines_keyboard(available_machines, lang)
     )
-
+    await state.set_state(AddRecord.waiting_for_machine)
+    await callback.answer()
 
 # Код создания брони
-@user_router.callback_query(F.data.startswith("machine_"))
+@user_router.callback_query(F.data.startswith("machine_"), AddRecord.waiting_for_machine)
 async def process_machine(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
     machine_id = int(callback.data.split("_")[1])
     data = await state.get_data()
-    duration_minutes: int=90
+    duration_minutes = 90
     start_time = data["start_time"]
     end_time = start_time + timedelta(minutes=duration_minutes)
     
     user = await get_user_by_tg_id(callback.from_user.id)
 
     try:
-        result = await create_booking(
-            user_id=user.id,
-            machine_id=machine_id,
-            start_time=start_time
-        )
-        
-        await callback.message.edit_text(
-            t["booking_success"].format(
-                machine_num=result['machine'].number_machine,  # Используем machine из результата
-                start=start_time.strftime('%d.%m.%Y %H:%M'),
-                end=end_time.strftime('%H:%M')
-            ),
-            reply_markup=get_section_keyboard(lang)
-        )
-    except ValueError:
+        if await is_slot_free(machine_id, start_time):
+            result = await create_booking(
+                user_id=user.id,
+                machine_id=machine_id,
+                start_time=start_time
+            )
+            
+            await callback.message.edit_text(
+                t["booking_success"].format(
+                    machine_num=result['machine'].number_machine,
+                    start=start_time.strftime('%d.%m.%Y %H:%M'),
+                    end=end_time.strftime('%H:%M')
+                ),
+                reply_markup=get_exit_keyboard(lang)
+            )
+            await state.clear()
+        else:
+            await callback.answer(t["slot_just_taken"], show_alert=True)
+            
+    except Exception as e:
         await callback.message.edit_text(t["booking_error"])
     
     await state.clear()
     await state.update_data(lang=lang)
+
+@user_router.callback_query(F.data == "back_to_sections", AddRecord.waiting_for_machine_type)
+async def process_back_to_sections(callback: CallbackQuery, state: FSMContext):
+    lang, t = await get_lang_and_texts(state)
+    await callback.message.edit_text(
+        t["hello_user"].format(name=callback.from_user.first_name),
+        reply_markup=get_section_keyboard(lang)
+    )
+    await state.clear()
+    await callback.answer

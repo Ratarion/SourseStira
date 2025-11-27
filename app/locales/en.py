@@ -10,9 +10,13 @@ ENtexts = {
         "exit": "Exit",
         "back": "Back",
         "machine_type": "Machine",
+        "select_machine_type": "Select machine type",
         # Booking
         "record_start": "Select a date (function under development)",
         "slots_none": "No free slots available on {date}",
+        "machine_type_wash": "Washing",
+        "machine_type_dry": "Drying",
+        "no_active_machines_type": "No active machines of the selected type!",
         "time_prompt": "Select a time for {date}:",
         "machines_none": "Oops! All machines are busy at this time.",
         "machine_prompt": "Select a washing machine for {datetime}:",
