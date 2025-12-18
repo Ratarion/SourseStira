@@ -11,6 +11,8 @@ ENtexts = {
         "back": "Back",
         "machine_type": "Machine",
         "select_machine_type": "Select machine type",
+        "for_wash": "for washing",
+        "for_dry": "for drying",
         # Booking
         "record_start": "Select a date (function under development)",
         "slots_none": "No free slots available on {date}",

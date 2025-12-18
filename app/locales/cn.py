@@ -11,6 +11,8 @@ CNtexts = {
         "back": "返回",
         "machine_type": "洗衣机",
         "select_machine_type": "选择机器类型",
+        "for_wash": "用于洗涤",
+        "for_dry": "用于干燥",
         # Запись
         "record_start": "选择日期 (功能开发中)",
         "slots_none": "{date} 无可用时段",

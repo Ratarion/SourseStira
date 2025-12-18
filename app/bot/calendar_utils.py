@@ -13,50 +13,69 @@ class CustomLaundryCalendar(SimpleCalendar):
     calendar_callback = CustomLaundryCalendarCallback
 
     def __init__(self, workload: dict, max_capacity: int, locale: str = 'ru'):
-        super().__init__(locale=locale, show_alerts=True)
+        # Ensure locale is lowercase for consistency
+        super().__init__(locale=locale.lower(), show_alerts=True)
         self.workload = workload
         self.max_capacity = max_capacity
+        self.locale = locale.lower()
         
         self.months_names = {
             1: "Январь", 2: "Февраль", 3: "Март", 4: "Апрель",
             5: "Май", 6: "Июнь", 7: "Июль", 8: "Август",
             9: "Сентябрь", 10: "Октябрь", 11: "Ноябрь", 12: "Декабрь"
         }
+        
+        # Simple translation map for the Back button inside the class
+        self.back_labels = {
+            'ru': "Назад",
+            'en': "Back",
+            'cn': "返回",
+            'zh': "返回"
+        }
 
-    async def start_calendar(self, year: int = None, month: int = None) -> InlineKeyboardMarkup:
-        # Всегда берем текущую дату
+    async def start_calendar(
+        self, 
+        year: int = None, 
+        month: int = None, 
+        header_text: str = None, 
+        back_callback: str = None
+    ) -> InlineKeyboardMarkup:
+        
+        # Determine current date if not provided
         now = datetime.now()
-        curr_year = now.year
-        curr_month = now.month
+        if year is None: year = now.year
+        if month is None: month = now.month
     
-        # Генерируем базовую структуру (она содержит Год, Навигацию, Дни недели, Дни, Футер)
-        markup = await super().start_calendar(year=curr_year, month=curr_month)
+        # Generate base structure from SimpleCalendar
+        markup = await super().start_calendar(year=year, month=month)
         original_kb = markup.inline_keyboard
         
         new_inline_keyboard = []
     
-        # 1. СТРОКА ЗАГОЛОВКА (Только месяц)
-        # Вместо [ < ] [ Месяц ] [ > ] создаем одну кнопку с именем месяца
-        month_name = self.months_names.get(curr_month, "Месяц")
-        title_btn = InlineKeyboardButton(text=month_name, callback_data="ignore_action")
+        # 1. HEADER ROW (Month Name)
+        # We prefer keeping the Month name as the header so the user knows which month acts.
+        # If you strictly want 'header_text' to replace the month name, uncomment the next line:
+        # title_text = header_text if header_text else self.months_names.get(month, "Month")
+        title_text = self.months_names.get(month, "Месяц")
+        
+        title_btn = InlineKeyboardButton(text=title_text, callback_data="ignore_action")
         new_inline_keyboard.append([title_btn])
 
-        # 2. СТРОКА ДНИ НЕДЕЛИ (Пн, Вт, Ср...)
-        # В стандартном SimpleCalendar:
-        # index 0 = Год [2025] -> пропускаем
-        # index 1 = Навигация [<][дек][>] -> мы заменили её своим заголовком выше
-        # index 2 = Дни недели -> берем
+        # 2. WEEKDAYS ROW
+        # In SimpleCalendar: index 2 usually contains weekdays (Mo, Tu, We...)
         if len(original_kb) > 2:
             new_inline_keyboard.append(original_kb[2])
 
-        # 3. СТРОКИ С ДАТАМИ (1, 2, 3...)
-        # Даты идут с 3-го индекса и до предпоследнего (последний - это Cancel/Today)
-        # Мы итерируемся от 3 до len-1, чтобы отсечь футер
-        for row in original_kb[3:-1]:
+        # 3. DATE ROWS
+        # SimpleCalendar usually puts days from index 3 up to the footer.
+        # We iterate to find rows containing days (digits).
+        for row in original_kb[3:]:
             new_row = []
+            has_days = False
             for btn in row:
-                # Логика раскраски кружочков
+                # Check if this button is a day number
                 if btn.text.isdigit():
+                    has_days = True
                     day = int(btn.text)
                     used = self.workload.get(day, 0)
                     free = self.max_capacity - used if self.max_capacity > 0 else 0
@@ -68,7 +87,18 @@ class CustomLaundryCalendar(SimpleCalendar):
                     else:
                         btn.text = f"{day} 🟡"
                 
+                # Filter out standard navigation buttons if you don't want them (Cancel, Today)
+                # or keep them if they are part of the day rows.
                 new_row.append(btn)
-            new_inline_keyboard.append(new_row)
+            
+            # Only append the row if it actually contains calendar days or valid spacers
+            if has_days:
+                new_inline_keyboard.append(new_row)
+
+        # 4. BACK BUTTON (Footer)
+        if back_callback:
+            back_label = self.back_labels.get(self.locale, "Back")
+            back_btn = InlineKeyboardButton(text=f"⬅️ {back_label}", callback_data=back_callback)
+            new_inline_keyboard.append([back_btn])
     
         return InlineKeyboardMarkup(inline_keyboard=new_inline_keyboard)

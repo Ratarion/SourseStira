@@ -11,6 +11,8 @@ RUtexts = {
         "back": "Назад",
         "machine_type": "Машина",
         "select_machine_type": "Выберите тип машины",
+        "for_wash": "для стирки",
+        "for_dry": "для сушки",
         # Запись
         "record_start": "Выберите дату",
         "slots_none": "На {date} нет свободных слотов",

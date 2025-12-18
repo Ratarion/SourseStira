@@ -216,52 +216,57 @@ async def process_record_start(callback: CallbackQuery, state: FSMContext):
 @user_router.callback_query(F.data.startswith("type_"), AddRecord.waiting_for_machine_type)
 async def process_machine_type(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    machine_type_code = callback.data.split("_")[1]
+    machine_type_code = callback.data.split("_")[1] # WASH или DRY
 
-    # Определяем тип для БД
-    type_map = {
-        'WASH': t["machine_type_wash"],
-        'DRY':  t["machine_type_dry"]
-    }
-    machine_type_db = type_map.get(machine_type_code, 'Стирка')
+    # Выбираем название типа для БД и для текста
+    if machine_type_code == 'WASH':
+        machine_type_db = t["machine_type_wash"]
+        # Формируем фразу "Выберите дату для стирки"
+        header_text = f"📅 {t['record_start']} {t['for_wash']}"
+    else:
+        machine_type_db = t["machine_type_dry"]
+        header_text = f"📅 {t['record_start']} {t['for_dry']}"
 
-    # 1. Сразу получаем capacity. Это быстрый запрос? 
-    # Если он считает через COUNT(*), это ок.
     max_capacity = await get_total_daily_capacity_by_type(machine_type_db)
     
-    # Быстрая проверка на 0
     if max_capacity == 0:
         await callback.answer(t["no_active_machines_type"], show_alert=True)
-        # Не перерисовываем клавиатуру лишний раз, просто уведомляем
         return
 
-    # Сохраняем в стейт
-    await state.update_data(
-        machine_type=machine_type_db,
-        max_capacity=max_capacity
-    )
+    await state.update_data(machine_type=machine_type_db, max_capacity=max_capacity)
     
     now = datetime.now()
-
-    # 2. Получаем загруженность ОДИН раз
     workload = await get_month_workload(now.year, now.month, machine_type_db)
 
-    # Создаём календарь
-    # Обратите внимание: locale передаем сразу правильно
-    locale_code = lang.lower() if lang in ['RU', 'EN', 'CN'] else 'ru'
     calendar = CustomLaundryCalendar(
         workload=workload, 
         max_capacity=max_capacity, 
-        locale=locale_code
+        locale=lang.lower()
     )
 
+    # Вызываем обновленный календарь
     await callback.message.edit_text(
-        t["record_start"],
-        reply_markup=await calendar.start_calendar(now.year, now.month),
+        header_text,
+        reply_markup=await calendar.start_calendar(
+            year=now.year, 
+            month=now.month, 
+            header_text=header_text,
+            back_callback="back_to_machine_type" # Колбэк для возврата к выбору типа
+        ),
         parse_mode="HTML"
     )
-
     await state.set_state(AddRecord.waiting_for_day)
+    await callback.answer()
+
+# ДОБАВИТЬ ХЕНДЛЕР ДЛЯ КНОПКИ НАЗАД В КАЛЕНДАРЕ
+@user_router.callback_query(F.data == "back_to_machine_type", AddRecord.waiting_for_day)
+async def back_to_type(callback: CallbackQuery, state: FSMContext):
+    lang, t = await get_lang_and_texts(state)
+    await callback.message.edit_text(
+        t["select_machine_type"],
+        reply_markup=get_machine_type_keyboard(lang)
+    )
+    await state.set_state(AddRecord.waiting_for_machine_type)
     await callback.answer()
 
 # 2. ЕДИНЫЙ Хендлер для календаря (и выбор дня, и навигация)
@@ -404,10 +409,27 @@ async def process_back_to_calendar(callback: CallbackQuery, state: FSMContext):
     max_capacity = data.get('max_capacity', 0)
     now = datetime.now()
     workload = await get_month_workload(now.year, now.month, machine_type_db)
-    calendar = CustomLaundryCalendar(workload=workload, max_capacity=max_capacity, locale=lang.lower())
+    
+    calendar = CustomLaundryCalendar(
+        workload=workload, 
+        max_capacity=max_capacity, 
+        locale=lang.lower()
+    )
+    
+    # Generate header text to be consistent
+    if machine_type_db == t["machine_type_wash"]: # Check logic from your text dict
+         header_text = f"📅 {t['record_start']} {t['for_wash']}"
+    else:
+         header_text = f"📅 {t['record_start']} {t['for_dry']}"
+
     await callback.message.edit_text(
-        t["record_start"],
-        reply_markup=await calendar.start_calendar(now.year, now.month)
+        header_text,
+        reply_markup=await calendar.start_calendar(
+            year=now.year, 
+            month=now.month,
+            header_text=header_text,       # Pass header
+            back_callback="back_to_machine_type" # Add the BACK button callback here too
+        )
     )
     await state.set_state(AddRecord.waiting_for_day)
     await callback.answer()
