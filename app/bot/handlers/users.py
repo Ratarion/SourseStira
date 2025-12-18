@@ -13,7 +13,6 @@ except ImportError:
     class SimpleCalendarAction:
         DAY = "DAY"
 
-
 from app.bot.calendar_utils import CustomLaundryCalendar
 
 from app.locales import ru, en, cn
@@ -226,33 +225,35 @@ async def process_machine_type(callback: CallbackQuery, state: FSMContext):
     }
     machine_type_db = type_map.get(machine_type_code, 'Стирка')
 
-    # Проверка работоспособности для выбранного типа
+    # 1. Сразу получаем capacity. Это быстрый запрос? 
+    # Если он считает через COUNT(*), это ок.
     max_capacity = await get_total_daily_capacity_by_type(machine_type_db)
+    
+    # Быстрая проверка на 0
     if max_capacity == 0:
         await callback.answer(t["no_active_machines_type"], show_alert=True)
-        await callback.message.edit_text(
-            t["select_machine_type"],
-            reply_markup=get_machine_type_keyboard(lang)
-        )
+        # Не перерисовываем клавиатуру лишний раз, просто уведомляем
         return
 
+    # Сохраняем в стейт
     await state.update_data(
         machine_type=machine_type_db,
         max_capacity=max_capacity
     )
-    # Получаем загруженность месяца и max capacity для индикаторов в календаре
-    today = datetime.now()
-    workload = await get_month_workload(today.year, today.month, machine_type_db)
-    max_capacity = await get_total_daily_capacity_by_type(machine_type_db)
-
+    
     now = datetime.now()
-    year = now.year
-    month = now.month
 
-    workload = await get_month_workload(year, month, machine_type_db)
+    # 2. Получаем загруженность ОДИН раз
+    workload = await get_month_workload(now.year, now.month, machine_type_db)
 
-    # Создаём кастомный календарь с индикаторами (🟢/🟡/🔴)
-    calendar = CustomLaundryCalendar(workload=workload, max_capacity=max_capacity, locale=lang.lower() if lang in ['ru', 'en', 'cn'] else 'ru')
+    # Создаём календарь
+    # Обратите внимание: locale передаем сразу правильно
+    locale_code = lang.lower() if lang in ['RU', 'EN', 'CN'] else 'ru'
+    calendar = CustomLaundryCalendar(
+        workload=workload, 
+        max_capacity=max_capacity, 
+        locale=locale_code
+    )
 
     await callback.message.edit_text(
         t["record_start"],
@@ -270,10 +271,6 @@ async def process_simple_calendar(callback: CallbackQuery, callback_data: Simple
     data = await state.get_data()
     max_capacity = data.get('max_capacity', 0)
     machine_type_db = data['machine_type']
-
-    if callback_data.act in ['PREV-MONTH', 'NEXT-MONTH']:
-        await callback.answer(t["navigation_disabled"], show_alert=True)  # Или просто await callback.answer()
-        return
 
     workload = await get_month_workload(callback_data.year, callback_data.month, machine_type_db)
 
