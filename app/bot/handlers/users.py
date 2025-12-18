@@ -12,10 +12,7 @@ try:
 except ImportError:
     class SimpleCalendarAction:
         DAY = "DAY"
-        PREV_MONTH = "PREV-MONTH"
-        NEXT_MONTH = "NEXT-MONTH"
-        PREV_YEAR = "PREV-YEAR"
-        NEXT_YEAR = "NEXT-YEAR"
+
 
 from app.bot.calendar_utils import CustomLaundryCalendar
 
@@ -83,7 +80,6 @@ async def set_language(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.delete()
     await cmd_start_auth(callback.message, state)
-
 
 # ---------------------------------------------------------
 # ЛОГИКА АУТЕНТИФИКАЦИИ (Локализовано)
@@ -224,7 +220,10 @@ async def process_machine_type(callback: CallbackQuery, state: FSMContext):
     machine_type_code = callback.data.split("_")[1]
 
     # Определяем тип для БД
-    type_map = {'WASH': 'Стирка', 'DRY': 'Сушка'}
+    type_map = {
+        'WASH': t["machine_type_wash"],
+        'DRY':  t["machine_type_dry"]
+    }
     machine_type_db = type_map.get(machine_type_code, 'Стирка')
 
     # Проверка работоспособности для выбранного типа
@@ -257,7 +256,8 @@ async def process_machine_type(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text(
         t["record_start"],
-        reply_markup=await calendar.start_calendar(today.year, today.month)
+        reply_markup=await calendar.start_calendar(now.year, now.month),
+        parse_mode="HTML"
     )
 
     await state.set_state(AddRecord.waiting_for_day)
@@ -270,6 +270,10 @@ async def process_simple_calendar(callback: CallbackQuery, callback_data: Simple
     data = await state.get_data()
     max_capacity = data.get('max_capacity', 0)
     machine_type_db = data['machine_type']
+
+    if callback_data.act in ['PREV-MONTH', 'NEXT-MONTH']:
+        await callback.answer(t["navigation_disabled"], show_alert=True)  # Или просто await callback.answer()
+        return
 
     workload = await get_month_workload(callback_data.year, callback_data.month, machine_type_db)
 

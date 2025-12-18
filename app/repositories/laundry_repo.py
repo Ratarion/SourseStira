@@ -202,7 +202,7 @@ async def get_month_workload(year: int, month: int, machine_type: Optional[str] 
                 extract('day', Booking.start_time).cast(Integer).label('day'),
                 func.count(Booking.id).label('count')
             )
-            .join(Machine, Booking.machine_id == Machine.id) # Добавлено соединение с Machine
+            .join(Machine, Booking.inidmachine == Machine.id) # Добавлено соединение с Machine
             .where(
                 extract('year', Booking.start_time) == year,
                 extract('month', Booking.start_time) == month,
@@ -232,7 +232,8 @@ async def get_total_daily_capacity_by_type(machine_type: Optional[str] = None) -
         query = select(func.count(Machine.id)).where(and_(*conditions))
         result = await session.execute(query)
         active_machines = result.scalar() or 0
-    
+
+        print(f"Type: {machine_type}, active_machines: {active_machines}")
     # Параметры работы прачечной (8:00 - 23:00) -> 10 слотов по 90 минут
     # Это ваша текущая логика. Предполагаем, что max_capacity = кол-во активных машин.
     return active_machines
