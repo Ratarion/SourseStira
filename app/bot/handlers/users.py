@@ -276,100 +276,129 @@ async def process_simple_calendar(callback: CallbackQuery, callback_data: Simple
     lang, t = await get_lang_and_texts(state)
     data = await state.get_data()
     max_capacity = data.get('max_capacity', 0)
-    machine_type_db = data['machine_type']
+    machine_type_db = data.get('machine_type')
 
+    # Получаем workload для месяца выбранной даты
     workload = await get_month_workload(callback_data.year, callback_data.month, machine_type_db)
 
+    # Календарь для перераисовки
     calendar = CustomLaundryCalendar(workload=workload, max_capacity=max_capacity, locale=lang.lower())
+
+    # Построим header_text единообразно (используется везде при перерисовке)
+    if machine_type_db == t.get("machine_type_wash"):
+        header_text = f"📅 {t['record_start']} {t['for_wash']}"
+    else:
+        header_text = f"📅 {t['record_start']} {t['for_dry']}"
 
     selected, date = await calendar.process_selection(callback, callback_data)
 
-    if selected:
-        if callback_data.act == SimpleCalendarAction.DAY:
-            # Используем ранее вычисленную now_dt (или получаем заново)
-            now_dt = datetime.now()
+    if selected and callback_data.act == SimpleCalendarAction.DAY:
+        now_dt = datetime.now()
 
-            # Если выбранная дата — раньше сегодняшней,
-            # или это сегодня и текущее время >= 23:00 — считаем её 'прошедшей'
-            if date.date() < now_dt.date() or (date.date() == now_dt.date() and now_dt.time() >= time(23, 0)):
-                # Показываем локализованное сообщение об ошибке / прошедшем дне
-                await callback.answer(t["past_date_error"], show_alert=True)
-            
-                # Пересоздаём workload/календарь для того же месяца (чтобы вернуть пользователю календарь)
-                workload = await get_month_workload(callback_data.year, callback_data.month, machine_type_db)
-                calendar = CustomLaundryCalendar(workload=workload, max_capacity=max_capacity, locale=lang.lower())
-            
-                # Собираем header_text так же, как в process_machine_type (чтобы заголовок совпал)
-                if machine_type_db == t.get("machine_type_wash"):
-                    header_text = f"📅 {t['record_start']} {t['for_wash']}"
-                else:
-                    header_text = f"📅 {t['record_start']} {t['for_dry']}"
-            
-                # Отправляем пользователю заново календарь для того же месяца.
-                # В back_callback можно использовать "back_to_machine_type" или "back_to_sections"
-                # — в зависимости от того, куда хотите вернуть пользователя при нажатии «Назад».
-                try:
-                    await callback.message.edit_text(
-                        header_text,
-                        reply_markup=await calendar.start_calendar(
-                            year=callback_data.year,
-                            month=callback_data.month,
-                            header_text=header_text,
-                            back_callback="back_to_machine_type"
-                        )
-                    )
-                except TelegramBadRequest:
-                    # На случай, если edit_text невозможен (например, устарел message_id), отправим новый
-                    await callback.message.answer(
-                        header_text,
-                        reply_markup=await calendar.start_calendar(
-                            year=callback_data.year,
-                            month=callback_data.month,
-                            header_text=header_text,
-                            back_callback="back_to_machine_type"
-                        )
-                    )
-            
-                # Убедимся, что состояние остаётся ожиданием выбора дня
-                await state.set_state(AddRecord.waiting_for_day)
-                return
+        # 1) Прошедшая дата
+        if date.date() < now_dt.date() or (date.date() == now_dt.date() and now_dt.time() >= time(23, 0)):
+            await callback.answer(t["past_date_error"], show_alert=True)
 
-            day = date.day
-            used = workload.get(day, 0)
-            free = max_capacity - used if max_capacity > 0 else 0
-
-            if free <= 0:
-                await callback.answer(t["day_fully_booked"], show_alert=True)
+            # Перерисуем календарь для того же месяца с кнопкой Назад
+            try:
                 await callback.message.edit_text(
-                    t["select_date_prompt"],
-                    reply_markup=await calendar.start_calendar(callback_data.year, callback_data.month)
+                    header_text,
+                    reply_markup=await calendar.start_calendar(
+                        year=callback_data.year,
+                        month=callback_data.month,
+                        header_text=header_text,
+                        back_callback="back_to_machine_type"
+                    )
                 )
-                return
-
-            await state.update_data(chosen_date=date)
-
-            # Адаптируем get_available_slots для типа машины (нужно реализовать в laundry_repo)
-            slots = await get_available_slots(date, machine_type=machine_type_db)
-
-            if not slots:
-                await callback.answer(t["no_slots_available"], show_alert=True)
-                await callback.message.edit_text(
-                    t["select_date_prompt"],
-                    reply_markup=await calendar.start_calendar(callback_data.year, callback_data.month)
+            except TelegramBadRequest:
+                await callback.message.answer(
+                    header_text,
+                    reply_markup=await calendar.start_calendar(
+                        year=callback_data.year,
+                        month=callback_data.month,
+                        header_text=header_text,
+                        back_callback="back_to_machine_type"
+                    )
                 )
-                return
 
-            await callback.message.edit_text(
-                t["select_time_prompt"].replace("{date}", date.strftime("%d.%m")),
-                reply_markup=get_time_slots_keyboard(date, slots, lang)
-            )
-            await state.set_state(AddRecord.waiting_for_time)
-            await callback.answer()
+            await state.set_state(AddRecord.waiting_for_day)
             return
 
+        # 2) День полностью занят (красная иконка)
+        day = date.day
+        used = workload.get(day, 0)
+        free = max_capacity - used if max_capacity > 0 else 0
+
+        if free <= 0:
+            await callback.answer(t["day_fully_booked"], show_alert=True)
+
+            # Перерисуем календарь с заголовком и кнопкой назад
+            try:
+                await callback.message.edit_text(
+                    header_text,
+                    reply_markup=await calendar.start_calendar(
+                        year=callback_data.year,
+                        month=callback_data.month,
+                        header_text=header_text,
+                        back_callback="back_to_machine_type"
+                    )
+                )
+            except TelegramBadRequest:
+                await callback.message.answer(
+                    header_text,
+                    reply_markup=await calendar.start_calendar(
+                        year=callback_data.year,
+                        month=callback_data.month,
+                        header_text=header_text,
+                        back_callback="back_to_machine_type"
+                    )
+                )
+
+            await state.set_state(AddRecord.waiting_for_day)
+            return
+
+        # 3) Нет доступных слотов (пустой список слотов)
+        await state.update_data(chosen_date=date)
+        slots = await get_available_slots(date, machine_type=machine_type_db)
+
+        if not slots:
+            await callback.answer(t["no_slots_available"], show_alert=True)
+
+            try:
+                await callback.message.edit_text(
+                    header_text,
+                    reply_markup=await calendar.start_calendar(
+                        year=callback_data.year,
+                        month=callback_data.month,
+                        header_text=header_text,
+                        back_callback="back_to_machine_type"
+                    )
+                )
+            except TelegramBadRequest:
+                await callback.message.answer(
+                    header_text,
+                    reply_markup=await calendar.start_calendar(
+                        year=callback_data.year,
+                        month=callback_data.month,
+                        header_text=header_text,
+                        back_callback="back_to_machine_type"
+                    )
+                )
+
+            await state.set_state(AddRecord.waiting_for_day)
+            return
+
+        # 4) Есть слоты — показываем выбор времени
+        await callback.message.edit_text(
+            t["select_time_prompt"].replace("{date}", date.strftime("%d.%m")),
+            reply_markup=get_time_slots_keyboard(date, slots, lang)
+        )
+        await state.set_state(AddRecord.waiting_for_time)
         await callback.answer()
-    else:
-        await callback.answer()
+        return
+
+    # Если selection == False или другое событие — просто ответим
+    await callback.answer()
 
 # Код выбора времени
 @user_router.callback_query(F.data.startswith("time_"), AddRecord.waiting_for_time)
