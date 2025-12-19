@@ -1,5 +1,6 @@
 from aiogram import Router, F
 import asyncio
+import logging
 from aiogram.filters import CommandStart
 from app.bot.calendar_utils import CustomLaundryCalendar, CustomLaundryCalendarCallback
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -213,83 +214,44 @@ async def process_record_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@user_router.callback_query(CustomLaundryCalendarCallback.filter(F.act == "DAY"))
-async def process_day_selection(
-    callback: CallbackQuery,
-    state: FSMContext,
-    callback_data: CustomLaundryCalendarCallback
-):
-    lang, t = await get_lang_and_texts(state)
-    data = await state.get_data()
-
-    selected_date = date(callback_data.year, callback_data.month, callback_data.day)
-    today = date.today()
-
-    if selected_date < today:
-        await callback.answer(t["past_date_error"], show_alert=True)
-        return
-
-    machine_type_db = data.get("machine_type")
-    if not machine_type_db:
-        await callback.answer("Ошибка: тип не выбран", show_alert=True)
-        return
-
-    slots = await get_available_slots(selected_date, machine_type=machine_type_db)
-
-    if not slots:
-        await callback.answer(
-            t["slots_none"].format(date=selected_date.strftime("%d.%m.%Y")),
-            show_alert=True
-        )
-        return
-
-    await state.update_data(chosen_date=selected_date)
-
-    await callback.message.edit_text(
-        t["time_prompt"].format(date=selected_date.strftime("%d.%m.%Y")),
-        reply_markup=get_time_slots_keyboard(selected_date, slots, lang)
-    )
-    await state.set_state(AddRecord.waiting_for_time)
-    await callback.answer()
-
-
+# Хэндлер выбора типа машины — запускает календарь
 @user_router.callback_query(F.data.startswith("type_"), AddRecord.waiting_for_machine_type)
 async def process_machine_type(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    machine_type_callback = callback.data.split("_")[1]  # WASH или DRY
+    machine_type_callback = callback.data.split("_")[1]  # "WASH" или "DRY"
 
     if machine_type_callback == "WASH":
-        machine_type_db = "Стиральная"   # ← именно так в твоей БД!
+        machine_type_db = t["machine_type_wash"]  # "Стиральная" из локализации (твоя БД)
         header_text = f"📅 {t['record_start']} {t['for_wash']}"
     elif machine_type_callback == "DRY":
-        machine_type_db = "Сушильная"    # ← именно так
+        machine_type_db = t["machine_type_dry"]  # "Сушильная"
         header_text = f"📅 {t['record_start']} {t['for_dry']}"
     else:
-        await callback.answer("Ошибка типа", show_alert=True)
+        await callback.answer("Ошибка типа машины", show_alert=True)
         return
 
-    # Сохраняем в state правильное значение из БД
-    await state.update_data(
-        machine_type=machine_type_db,
-        max_capacity=await get_total_daily_capacity_by_type(machine_type_db)  # можно сразу посчитать
-    )
+    # Сохраняем тип в state (используем значение из текстов, оно совпадает с БД)
+    await state.update_data(machine_type=machine_type_db)
 
-    # Показываем календарь
+    # Загружаем workload и capacity для календаря
     now = datetime.now()
     workload = await get_month_workload(now.year, now.month, machine_type_db)
+    max_capacity = await get_total_daily_capacity_by_type(machine_type_db)
+    await state.update_data(max_capacity=max_capacity)
 
     calendar = CustomLaundryCalendar(
-        workload=workload,
-        max_capacity=await get_total_daily_capacity_by_type(machine_type_db),
+        workload=workload, 
+        max_capacity=max_capacity, 
         locale=lang.lower()
     )
 
     await callback.message.edit_text(
         header_text,
         reply_markup=await calendar.start_calendar(
-            year=now.year,
+            year=now.year, 
             month=now.month,
-            back_callback="back_to_sections"
+            header_text=header_text,
+            back_callback="back_to_sections"  # Или твой back_callback
         )
     )
     await state.set_state(AddRecord.waiting_for_day)
@@ -306,9 +268,11 @@ async def back_to_type(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AddRecord.waiting_for_machine_type)
     await callback.answer()
 
-# 2. ЕДИНЫЙ Хендлер для календаря (и выбор дня, и навигация)
-@user_router.callback_query(CustomLaundryCalendar.calendar_callback.filter(), AddRecord.waiting_for_day)
+@user_router.callback_query(SimpleCalendarCallback.filter(F.act == "DAY"), AddRecord.waiting_for_day)
 async def process_simple_calendar(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
+    # отладочный лог — чтобы сразу увидеть, что хэндлер выполнился
+    logging.info("DAY handler fired: %s", callback_data)
+
     lang, t = await get_lang_and_texts(state)
     data = await state.get_data()
     max_capacity = data.get('max_capacity', 0)
@@ -321,7 +285,7 @@ async def process_simple_calendar(callback: CallbackQuery, callback_data: Simple
     selected, date = await calendar.process_selection(callback, callback_data)
 
     if selected:
-        if callback_data.action == SimpleCalendarAction.DAY:
+        if callback_data.act == SimpleCalendarAction.DAY:
             # Используем ранее вычисленную now_dt (или получаем заново)
             now_dt = datetime.now()
 
@@ -500,3 +464,10 @@ async def process_exit(callback: CallbackQuery, state: FSMContext):
     )
     await state.clear()
     await callback.answer()
+
+
+@user_router.callback_query()
+async def debug_callback(cb: CallbackQuery):
+    import logging
+    logging.info("Callback received: %s", cb.data)
+    await cb.answer()

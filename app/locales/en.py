@@ -1,6 +1,6 @@
 # --- СЛОВАРЬ ЛОКАЛИЗАЦИИ ---
 ENtexts = {
-    "ENG": { 
+    "ENG": {
         "hello_user": "Hello, {name}! Choose an action:",
         "welcome_lang_choice": "Hello, choose a language",
         "record_laundry": "Book a wash",
@@ -13,19 +13,35 @@ ENtexts = {
         "select_machine_type": "Select machine type",
         "for_wash": "for washing",
         "for_dry": "for drying",
-        # Booking
+
+        # Booking / calendar
         "record_start": "Select a date (function under development)",
         "past_date_error": "This day has already passed. Please choose another date.",
+        # legacy key (kept)
+        "time_prompt": "Select a time for {date}:",
+        # new key used in code
+        "select_time_prompt": "Select a time for {date}:",
+        "select_date_prompt": "Please select a date",
+        "day_fully_booked": "This date is fully booked.",
+        "no_slots_available": "No slots available on the selected date.",
+        "no_available_slots_alert": "No available machines at this time.",
         "slots_none": "No free slots available on {date}",
+
         "machine_type_wash": "Washing",
         "machine_type_dry": "Drying",
         "no_active_machines_type": "No active machines of the selected type!",
-        "time_prompt": "Select a time for {date}:",
+        # key used when overall capacity == 0 in your handler
+        "no_active_machines": "No active machines available right now.",
+        # Title for section menu when returning from errors
+        "section_menu_title": "Main menu",
+
         "machines_none": "Oops! All machines are busy at this time.",
         "machine_prompt": "Select a washing machine for {datetime}:",
         "booking_success": "Booking created!\nMachine №{machine_num}\n{start} – {end}",
         "booking_error": "The slot is already taken by another user!",
-        # Аунтификация
+        "slot_just_taken": "Sorry — someone just took this slot. Try another one.",
+
+        # Authentication
         "none_user": "No data was found in the system. Please contact the administrator.",
         "reg_id_error": "Please enter only numbers.",
         "other_tg_id": "This user is already registered with another account.",

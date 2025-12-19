@@ -55,7 +55,6 @@ class CustomLaundryCalendar(SimpleCalendar):
         # 1. HEADER ROW (Month Name)
         # We prefer keeping the Month name as the header so the user knows which month acts.
         # If you strictly want 'header_text' to replace the month name, uncomment the next line:
-        # title_text = header_text if header_text else self.months_names.get(month, "Month")
         title_text = self.months_names.get(month, "Месяц")
         
         title_btn = InlineKeyboardButton(text=title_text, callback_data="ignore_action")

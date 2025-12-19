@@ -13,24 +13,40 @@ CNtexts = {
         "select_machine_type": "选择机器类型",
         "for_wash": "用于洗涤",
         "for_dry": "用于干燥",
-        # Запись
-        "record_start": "选择日期 (功能开发中)",
+
+        # --- 预订 / 日历 ---
+        "record_start": "选择日期",
         "past_date_error": "该日期已过。请选择其他日期。",
-        "slots_none": "{date} 无可用时段",
+
+        # ⚠️ 已存在（保留）
         "time_prompt": "选择 {date} 的时间:",
-        "machines_none": "抱歉! 所有洗衣机已被预订.",
+
+        # ✅ 新增 ключи（必须）
+        "select_time_prompt": "选择 {date} 的时间:",
+        "select_date_prompt": "请选择日期",
+        "day_fully_booked": "该日期已被全部预订。",
+        "no_slots_available": "所选日期没有可用的时间段。",
+        "no_available_slots_alert": "此时间没有可用的机器。",
+
+        "slots_none": "{date} 无可用时段",
+
         "machine_type_wash": "洗衣",
         "machine_type_dry": "干燥",
-        "no_active_machines_type": "没有选定类型的活跃机器！",
+        "no_active_machines_type": "没有选定类型的可用机器！",
+        "no_active_machines": "当前没有可用的机器。",
+
+        "machines_none": "抱歉！此时间所有机器都已被占用。",
         "machine_prompt": "选择 {datetime} 的洗衣机:",
         "booking_success": "预订成功!\n洗衣机 №{machine_num}\n{start} – {end}",
         "booking_error": "该时段已被其他用户预订!",
-        # Аунтификация
-        "none_user": "系统中未找到数据. 与管理员联系.",
-        "reg_id_error": "请只输入数字.",
-        "other_tg_id": "这个用户已经注册了另一个帐户.",
-        "seek_cards": "未找到具有此名称的用户. 输入您的学生证号码（仅限数字)",
-        "auth": "输入您的全名（姓氏，名字，父名）以获得授权:",
-        "write_FIO": "请输入您的全名 (至少2个字).",
+        "slot_just_taken": "该时间段刚刚被占用，请选择其他时间。",
+
+        # --- 认证 ---
+        "none_user": "系统中未找到数据。请联系管理员。",
+        "reg_id_error": "请只输入数字。",
+        "other_tg_id": "该用户已使用其他账户注册。",
+        "seek_cards": "未找到该姓名的用户。请输入学生证号码（仅数字）。",
+        "auth": "请输入您的全名（姓、名、父名）以进行授权：",
+        "write_FIO": "请输入您的全名（至少两个词）。",
     }
 }
