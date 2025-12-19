@@ -15,6 +15,7 @@ RUtexts = {
         "for_dry": "для сушки",
         # Запись
         "record_start": "Выберите дату",
+        "past_date_error": "Этот день уже прошёл. Пожалуйста, выберите другую дату.",
         "slots_none": "На {date} нет свободных слотов",
         "machine_type_wash": "Стиральная",
         "machine_type_dry": "Сушильная",

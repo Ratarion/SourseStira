@@ -15,6 +15,7 @@ CNtexts = {
         "for_dry": "用于干燥",
         # Запись
         "record_start": "选择日期 (功能开发中)",
+        "past_date_error": "该日期已过。请选择其他日期。",
         "slots_none": "{date} 无可用时段",
         "time_prompt": "选择 {date} 的时间:",
         "machines_none": "抱歉! 所有洗衣机已被预订.",

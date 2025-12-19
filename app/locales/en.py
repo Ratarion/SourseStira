@@ -15,6 +15,7 @@ ENtexts = {
         "for_dry": "for drying",
         # Booking
         "record_start": "Select a date (function under development)",
+        "past_date_error": "This day has already passed. Please choose another date.",
         "slots_none": "No free slots available on {date}",
         "machine_type_wash": "Washing",
         "machine_type_dry": "Drying",

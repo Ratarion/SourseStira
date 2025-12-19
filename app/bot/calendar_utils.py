@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram_calendar import SimpleCalendar
 from aiogram.filters.callback_data import CallbackData
@@ -79,8 +79,16 @@ class CustomLaundryCalendar(SimpleCalendar):
                     day = int(btn.text)
                     used = self.workload.get(day, 0)
                     free = self.max_capacity - used if self.max_capacity > 0 else 0
-    
-                    if free <= 0:
+
+                    now_dt = datetime.now()
+                    today_date = now_dt.date()
+                    now_time = now_dt.time()
+
+                    current_day = datetime(year, month, day).date()
+
+                    if current_day < today_date or (current_day == today_date and now_time >= time(23, 0)):
+                        btn.text = f"{day} ⚪"
+                    elif free <= 0:
                         btn.text = f"{day} 🔴"
                     elif used == 0:
                         btn.text = f"{day} 🟢"

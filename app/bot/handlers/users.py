@@ -5,7 +5,7 @@ from app.bot.calendar_utils import CustomLaundryCalendar
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, time, timedelta
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
 try:
     from aiogram_calendar.schemas import SimpleCalendarAction
@@ -285,7 +285,13 @@ async def process_simple_calendar(callback: CallbackQuery, callback_data: Simple
 
     if selected:
         if callback_data.action == SimpleCalendarAction.DAY:
-            if date.date() < datetime.now().date():
+            # Используем ранее вычисленную now_dt (или получаем заново)
+            now_dt = datetime.now()
+
+            # Если выбранная дата — раньше сегодняшней,
+            # или это сегодня и текущее время >= 23:00 — считаем её 'прошедшей'
+            if date.date() < now_dt.date() or (date.date() == now_dt.date() and now_dt.time() >= time(23, 0)):
+                # Показываем локализованное сообщение об ошибке / прошедшем дне
                 await callback.answer(t["past_date_error"], show_alert=True)
                 return
 
