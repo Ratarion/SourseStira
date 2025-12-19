@@ -294,6 +294,44 @@ async def process_simple_calendar(callback: CallbackQuery, callback_data: Simple
             if date.date() < now_dt.date() or (date.date() == now_dt.date() and now_dt.time() >= time(23, 0)):
                 # Показываем локализованное сообщение об ошибке / прошедшем дне
                 await callback.answer(t["past_date_error"], show_alert=True)
+            
+                # Пересоздаём workload/календарь для того же месяца (чтобы вернуть пользователю календарь)
+                workload = await get_month_workload(callback_data.year, callback_data.month, machine_type_db)
+                calendar = CustomLaundryCalendar(workload=workload, max_capacity=max_capacity, locale=lang.lower())
+            
+                # Собираем header_text так же, как в process_machine_type (чтобы заголовок совпал)
+                if machine_type_db == t.get("machine_type_wash"):
+                    header_text = f"📅 {t['record_start']} {t['for_wash']}"
+                else:
+                    header_text = f"📅 {t['record_start']} {t['for_dry']}"
+            
+                # Отправляем пользователю заново календарь для того же месяца.
+                # В back_callback можно использовать "back_to_machine_type" или "back_to_sections"
+                # — в зависимости от того, куда хотите вернуть пользователя при нажатии «Назад».
+                try:
+                    await callback.message.edit_text(
+                        header_text,
+                        reply_markup=await calendar.start_calendar(
+                            year=callback_data.year,
+                            month=callback_data.month,
+                            header_text=header_text,
+                            back_callback="back_to_machine_type"
+                        )
+                    )
+                except TelegramBadRequest:
+                    # На случай, если edit_text невозможен (например, устарел message_id), отправим новый
+                    await callback.message.answer(
+                        header_text,
+                        reply_markup=await calendar.start_calendar(
+                            year=callback_data.year,
+                            month=callback_data.month,
+                            header_text=header_text,
+                            back_callback="back_to_machine_type"
+                        )
+                    )
+            
+                # Убедимся, что состояние остаётся ожиданием выбора дня
+                await state.set_state(AddRecord.waiting_for_day)
                 return
 
             day = date.day
