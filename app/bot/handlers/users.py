@@ -1,7 +1,7 @@
 from aiogram import Router, F
 import asyncio
 from aiogram.filters import CommandStart
-from app.bot.calendar_utils import CustomLaundryCalendar
+from app.bot.calendar_utils import CustomLaundryCalendar, CustomLaundryCalendarCallback
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
@@ -213,47 +213,84 @@ async def process_record_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+@user_router.callback_query(CustomLaundryCalendarCallback.filter(F.act == "DAY"))
+async def process_day_selection(
+    callback: CallbackQuery,
+    state: FSMContext,
+    callback_data: CustomLaundryCalendarCallback
+):
+    lang, t = await get_lang_and_texts(state)
+    data = await state.get_data()
+
+    selected_date = date(callback_data.year, callback_data.month, callback_data.day)
+    today = date.today()
+
+    if selected_date < today:
+        await callback.answer(t["past_date_error"], show_alert=True)
+        return
+
+    machine_type_db = data.get("machine_type")
+    if not machine_type_db:
+        await callback.answer("Ошибка: тип не выбран", show_alert=True)
+        return
+
+    slots = await get_available_slots(selected_date, machine_type=machine_type_db)
+
+    if not slots:
+        await callback.answer(
+            t["slots_none"].format(date=selected_date.strftime("%d.%m.%Y")),
+            show_alert=True
+        )
+        return
+
+    await state.update_data(chosen_date=selected_date)
+
+    await callback.message.edit_text(
+        t["time_prompt"].format(date=selected_date.strftime("%d.%m.%Y")),
+        reply_markup=get_time_slots_keyboard(selected_date, slots, lang)
+    )
+    await state.set_state(AddRecord.waiting_for_time)
+    await callback.answer()
+
+
 @user_router.callback_query(F.data.startswith("type_"), AddRecord.waiting_for_machine_type)
 async def process_machine_type(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    machine_type_code = callback.data.split("_")[1] # WASH или DRY
+    machine_type_callback = callback.data.split("_")[1]  # WASH или DRY
 
-    # Выбираем название типа для БД и для текста
-    if machine_type_code == 'WASH':
-        machine_type_db = t["machine_type_wash"]
-        # Формируем фразу "Выберите дату для стирки"
+    if machine_type_callback == "WASH":
+        machine_type_db = "Стиральная"   # ← именно так в твоей БД!
         header_text = f"📅 {t['record_start']} {t['for_wash']}"
-    else:
-        machine_type_db = t["machine_type_dry"]
+    elif machine_type_callback == "DRY":
+        machine_type_db = "Сушильная"    # ← именно так
         header_text = f"📅 {t['record_start']} {t['for_dry']}"
-
-    max_capacity = await get_total_daily_capacity_by_type(machine_type_db)
-    
-    if max_capacity == 0:
-        await callback.answer(t["no_active_machines_type"], show_alert=True)
+    else:
+        await callback.answer("Ошибка типа", show_alert=True)
         return
 
-    await state.update_data(machine_type=machine_type_db, max_capacity=max_capacity)
-    
+    # Сохраняем в state правильное значение из БД
+    await state.update_data(
+        machine_type=machine_type_db,
+        max_capacity=await get_total_daily_capacity_by_type(machine_type_db)  # можно сразу посчитать
+    )
+
+    # Показываем календарь
     now = datetime.now()
     workload = await get_month_workload(now.year, now.month, machine_type_db)
 
     calendar = CustomLaundryCalendar(
-        workload=workload, 
-        max_capacity=max_capacity, 
+        workload=workload,
+        max_capacity=await get_total_daily_capacity_by_type(machine_type_db),
         locale=lang.lower()
     )
 
-    # Вызываем обновленный календарь
     await callback.message.edit_text(
         header_text,
         reply_markup=await calendar.start_calendar(
-            year=now.year, 
-            month=now.month, 
-            header_text=header_text,
-            back_callback="back_to_machine_type" # Колбэк для возврата к выбору типа
-        ),
-        parse_mode="HTML"
+            year=now.year,
+            month=now.month,
+            back_callback="back_to_sections"
+        )
     )
     await state.set_state(AddRecord.waiting_for_day)
     await callback.answer()
