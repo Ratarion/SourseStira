@@ -20,7 +20,7 @@ async def cmd_start_initial(message: Message, state: FSMContext):
     data = await state.get_data()
     if 'lang' not in data:
         await message.answer(
-            ALL_TEXTS["RU"]["welcome_lang_choice"],  # Полный мультиязычный текст
+            ALL_TEXTS["RU"]["welcome_lang_choice"],
             reply_markup=kb_welcom
         )
     else:

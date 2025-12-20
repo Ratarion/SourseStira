@@ -11,6 +11,9 @@ class AddRecord(StatesGroup):
 class Welcome(StatesGroup):
     waiting_for_client = State()
 
+class Report(StatesGroup):
+    waiting_for_report = State()
+
 class CancelRecord(StatesGroup):
     waiting_for_cancel = State()
 

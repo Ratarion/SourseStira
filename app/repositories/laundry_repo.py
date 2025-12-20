@@ -9,6 +9,7 @@ from app.db.base import async_session
 from app.db.models.residents import Resident as User
 from app.db.models.machine import Machine as Machine
 from app.db.models.booking import Booking as Booking
+from app.db.models.notification import Notification
 
 # ==========================================
 # РАБОТА С ПОЛЬЗОВАТЕЛЯМИ (АУТЕНТИФИКАЦИЯ)
@@ -172,7 +173,7 @@ async def get_total_daily_capacity_by_type(machine_type: Optional[str] = None) -
     return total_slots
 
 # ==========================================
-# ОПТИМИЗИРОВАННЫЙ ПОИСК СЛОТОВ (БЕЗ N+1 ЗАПРОСОВ)
+# ОПТИМИЗИРОВАННЫЙ ПОИСК СЛОТОВ 
 # ==========================================
 
 async def get_available_machines(start_time: datetime, machine_type: str) -> List[Machine]:
@@ -264,8 +265,15 @@ async def get_available_slots(
 
     return available_slots
 
-
-async def cancel_booking(booking_id: int):
+async def create_notification(resident_id: int, description: str, booking_id: Optional[int] = None):
     async with async_session() as session:
-        await session.execute(update(Booking).where(Booking.id == booking_id).values(status='cancelled'))
+        notification = Notification(
+            id_residents=resident_id,
+            id_booking=booking_id,
+            create_date=datetime.now(),
+            description=description
+        )
+        session.add(notification)
         await session.commit()
+        await session.refresh(notification)
+        return notification

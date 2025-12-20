@@ -292,3 +292,11 @@ async def process_exit(callback: CallbackQuery, state: FSMContext):
     )
     await state.clear()
     await callback.answer()
+
+
+# # Отладочный / универсальный логгер колбэков (оставил, но на booking_router)
+# @booking_router.callback_query()
+# async def debug_callback(cb: CallbackQuery):
+#     import logging
+#     logging.info("Callback received: %s", cb.data)
+#     await cb.answer()
