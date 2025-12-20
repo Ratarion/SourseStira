@@ -14,7 +14,7 @@
         "app/__pycache__": true,
         "app/bot/__pycache__": true,
         "app/bot/handlers/__pycache__": true,
-        "app/bot/handlers/__init__.py": true,
+        "app/bot/handlers/__init__.py": false,
         "app/bot/__init__.py": true,
         "app/config/__pycache__": true,
         "app/config/__init__.py": true,

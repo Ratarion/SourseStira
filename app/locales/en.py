@@ -16,6 +16,9 @@ ENtexts = {
 
         # Booking / calendar
         "record_start": "Select a date (function under development)",
+        "machine": "Machine",
+        "show_records_title": "Your bookings:",
+        "no_user_bookings": "You have no active bookings.",
         "past_date_error": "This day has already passed. Please choose another date.",
         # legacy key (kept)
         "time_prompt": "Select a time for {date}:",

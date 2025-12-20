@@ -101,15 +101,15 @@ async def create_booking(user_id: int, machine_id: int, start_time: datetime, du
         
         return {'booking': booking, 'machine': machine}
 
-async def get_user_bookings(tg_id: int) -> List[Booking]:
+async def get_user_bookings(user_id: int) -> List[Booking]:
     async with async_session() as session:
-        result = await session.execute(
-            select(Booking)
-            .join(User, Booking.inidresidents == User.id)
-            .where(User.tg_id == tg_id)
-            .order_by(Booking.start_time)
-        )
-        return result.scalars().all()
+        query = select(Booking).join(Machine, Booking.inidmachine == Machine.id).where(
+            Booking.inidresidents == user_id,
+            Booking.status != 'cancelled',  # Или and_(Booking.status.in_(['Подтверждено', 'Ожидание']))
+            Machine.status == 'Работает'  # Фильтр по активным машинам
+        ).order_by(Booking.start_time.desc())
+        result = await session.execute(query)
+        return result.scalars().all()  # Теперь b.machine доступен с number_machine, type_machine
 
 async def cancel_booking(booking_id: int, tg_id: int) -> bool:
     async with async_session() as session:
@@ -263,3 +263,9 @@ async def get_available_slots(
         current_slot += timedelta(minutes=slot_duration)
 
     return available_slots
+
+
+async def cancel_booking(booking_id: int):
+    async with async_session() as session:
+        await session.execute(update(Booking).where(Booking.id == booking_id).values(status='cancelled'))
+        await session.commit()

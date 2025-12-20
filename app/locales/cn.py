@@ -31,6 +31,9 @@ CNtexts = {
         "slots_none": "{date} 无可用时段",
 
         "machine_type_wash": "洗衣",
+        "machine": "机器",
+        "show_records_title": "您的预约：",
+        "no_user_bookings": "您当前没有预约。",
         "machine_type_dry": "干燥",
         "no_active_machines_type": "没有选定类型的可用机器！",
         "no_active_machines": "当前没有可用的机器。",

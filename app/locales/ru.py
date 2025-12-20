@@ -30,6 +30,10 @@ RUtexts = {
 
         "slots_none": "На {date} нет свободных слотов",
 
+        "machine": "Машина",
+        "show_records_title": "Ваши записи:",
+        "no_user_bookings": "У вас пока нет активных записей.",
+
         "machine_type_wash": "Стиральная",
         "machine_type_dry": "Сушильная",
         "no_active_machines_type": "Нет работающих машин выбранного типа!",
