@@ -31,13 +31,13 @@ async def show_records(callback: CallbackQuery, state: FSMContext):
         return
 
     lines = []
-    
+
     for b in bookings[:20]:
         start_str = b.start_time.strftime("%d.%m.%Y %H:%M") if b.start_time else "—"
         machine_num = b.machine.number_machine if hasattr(b, 'machine') and b.machine else "—"
         machine_type = b.machine.type_machine if hasattr(b, 'machine') and b.machine else "—"
         machine_label = t.get('machine', 'Машина')
-        lines.append(f"#{b.id} • {start_str} • {machine_label} №{machine_num} ({machine_type})")
+        lines.append(f"• {start_str} • {machine_label} №{machine_num} ({machine_type})")
 
     title = t.get("show_records_title", "Ваши записи:")
     text = title + "\n\n" + "\n".join(lines)

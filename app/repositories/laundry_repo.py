@@ -105,19 +105,19 @@ async def create_booking(user_id: int, machine_id: int, start_time: datetime, du
 
 async def get_user_bookings(user_id: int) -> List[Booking]:
     async with async_session() as session:
-        # Мы добавляем .options(joinedload(Booking.machine))
-        # Это заполняет поле booking.machine данными из таблицы machines
-        query = select(Booking).options(joinedload(Booking.machine)).where(
-            Booking.inidresidents == user_id,
-            Booking.status != 'cancelled'
-        ).order_by(Booking.start_time.desc())
+        now = datetime.now()  # Получаем текущее время
         
-        # ВАЖНОЕ ЗАМЕЧАНИЕ ПО ЛОГИКЕ:
-        # Я убрал фильтр "Machine.status == 'Работает'".
-        # Почему: Если человек постирал вчера, а сегодня машина сломалась (статус стал "Сломана"),
-        # то при старом фильтре эта запись исчезла бы из его истории.
-        # Человек должен видеть свою историю, даже если машина сейчас не работает.
-
+        query = (
+            select(Booking)
+            .options(joinedload(Booking.machine))
+            .where(
+                Booking.inidresidents == user_id,
+                Booking.status != 'cancelled',
+                Booking.end_time > now  # ФИЛЬТР: только те, что еще не закончились
+            )
+            .order_by(Booking.start_time.asc()) # Сортируем от ближайших к более поздним
+        )
+        
         result = await session.execute(query)
         return result.scalars().all()
 
