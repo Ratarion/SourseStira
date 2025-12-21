@@ -112,7 +112,7 @@ async def get_user_bookings(user_id: int) -> List[Booking]:
             .options(joinedload(Booking.machine))
             .where(
                 Booking.inidresidents == user_id,
-                Booking.status != 'cancelled',
+                Booking.status != 'Отменено',
                 Booking.end_time > now  # ФИЛЬТР: только те, что еще не закончились
             )
             .order_by(Booking.start_time.asc()) # Сортируем от ближайших к более поздним
@@ -121,23 +121,35 @@ async def get_user_bookings(user_id: int) -> List[Booking]:
         result = await session.execute(query)
         return result.scalars().all()
 
-async def cancel_booking(booking_id: int, tg_id: int) -> bool:
-    """
-    Меняет статус брони на 'cancelled' вместо удаления.
-    Проверяет, принадлежит ли бронь пользователю.
-    """
+async def cancel_booking(booking_id: int, user_tg_id: int) -> bool:
     async with async_session() as session:
-        # Проверяем, что бронь принадлежит этому пользователю
-        stmt_check = select(Booking).join(User).where(Booking.id == booking_id, User.tg_id == tg_id)
+        # 1. Сначала находим пользователя по tg_id
+        user_query = select(User).where(User.tg_id == user_tg_id)
+        user_result = await session.execute(user_query)
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            return False
+
+        # 2. Проверяем существование брони именно для этого пользователя
+        # Используем обычный фильтр по полю inidresidents
+        stmt_check = (
+            select(Booking)
+            .where(
+                Booking.id == booking_id,
+                Booking.inidresidents == user.id  # Сравнение ID пользователя
+            )
+        )
         result = await session.execute(stmt_check)
         booking = result.scalar_one_or_none()
-        
-        if booking:
-            # Обновляем статус вместо удаления
-            booking.status = 'cancelled'
-            await session.commit()
-            return True
-        return False
+
+        if not booking:
+            return False
+
+        # 3. Меняем статус на cancelled
+        booking.status = 'Отменено'
+        await session.commit()
+        return True
 
 async def get_all_users_with_tg() -> List[int]:
     """Получает список tg_id всех пользователей для рассылки."""
