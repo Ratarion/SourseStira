@@ -1,4 +1,3 @@
-# Измените app/bot/handlers/report.py на это (импортируйте новые зависимости сверху)
 from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
@@ -12,7 +11,7 @@ report_router = Router()
 @report_router.callback_query(F.data == "report")
 async def report_problem(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    await callback.message.edit_text(t.get("report_prompt", "Опишите проблему:"), reply_markup=None)
+    await callback.message.edit_text(t.get("report_prompt", "Укажите номер и тип машинки и опишите проблему:"), reply_markup=None)
     await state.set_state(Report.waiting_for_report)
     await callback.answer()
 

@@ -1,7 +1,7 @@
 import aiohttp
 import asyncio
 import logging
-import sys
+
 
 
 from aiogram import Bot, Dispatcher

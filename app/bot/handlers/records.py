@@ -31,6 +31,7 @@ async def show_records(callback: CallbackQuery, state: FSMContext):
         return
 
     lines = []
+    
     for b in bookings[:20]:
         start_str = b.start_time.strftime("%d.%m.%Y %H:%M") if b.start_time else "—"
         machine_num = b.machine.number_machine if hasattr(b, 'machine') and b.machine else "—"
