@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from aiogram import Router, F, Bot
+from app.bot.utils.translate import ALL_TEXTS
 from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramRetryAfter, TelegramForbiddenError
@@ -49,35 +50,26 @@ async def start_cancel_process(callback: CallbackQuery, state: FSMContext):
 @cancel_record_router.callback_query(F.data.startswith("cancel_id_"), CancelRecord.waiting_for_cancel)
 async def process_cancellation(callback: CallbackQuery, state: FSMContext, bot: Bot):
     """
-    Обрабатывает нажатие на кнопку отмены конкретной записи.
-    1. Получает данные о брони.
-    2. Отменяет её в БД.
-    3. Рассылает уведомления всем пользователям.
+    Обрабатывает отмену и запускает мульти-язычную рассылку.
     """
     lang, t = await get_lang_and_texts(state)
     booking_id = int(callback.data.split("_")[2])
     
-    # 1. Сначала получаем информацию о бронировании (чтобы знать дату/время для рассылки)
-    # Важно сделать это ДО отмены, если вдруг логика БД фильтрует отмененные
     booking_info = await get_booking_by_id(booking_id)
     
     if not booking_info:
         await callback.answer(t["cancel_error"], show_alert=True)
-        # Обновляем список, вдруг она уже удалена
         await start_cancel_process(callback, state)
         return
 
-    # Сохраняем данные для рассылки
-    date_str = booking_info.start_time.strftime("%d.%m")
-    time_str = f"{booking_info.start_time.strftime('%H:%M')} - {booking_info.end_time.strftime('%H:%M')}"
-    machine_num = booking_info.machine.number_machine
-    
-    # Локализация типа машинки для рассылки (берем из текущего языка админа или дефолт)
-    # Для красоты можно использовать общие словари, но здесь возьмем из текущего контекста t
-    m_type_key = "machine_type_wash" if booking_info.machine.type_machine == "WASH" else "machine_type_dry"
-    machine_type_str = t.get(m_type_key, booking_info.machine.type_machine)
+    # Сохраняем "сырые" данные для рассылки (не переведенные)
+    broadcast_data = {
+        "date_str": booking_info.start_time.strftime("%d.%m"),
+        "time_str": f"{booking_info.start_time.strftime('%H:%M')} - {booking_info.end_time.strftime('%H:%M')}",
+        "machine_num": booking_info.machine.number_machine,
+        "raw_machine_type": booking_info.machine.type_machine # "WASH" или "DRY"
+    }
 
-    # 2. Выполняем отмену
     success = await cancel_booking(booking_id, callback.from_user.id)
     
     if success:
@@ -88,48 +80,56 @@ async def process_cancellation(callback: CallbackQuery, state: FSMContext, bot: 
         )
         await state.clear()
         
-        # 3. ЗАПУСК РАССЫЛКИ (Фоновая задача)
-        # Формируем текст уведомления
-        notification_text = t["slot_freed_notification"].format(
-            date=date_str,
-            time=time_str,
-            m_type=machine_type_str,
-            m_num=machine_num
-        )
-        
-        # Запускаем рассылку без ожидания (чтобы бот не завис)
-        asyncio.create_task(broadcast_free_slot(bot, notification_text, exclude_tg_id=callback.from_user.id))
+        # ЗАПУСК РАССЫЛКИ
+        # Передаем не текст, а данные (broadcast_data)
+        asyncio.create_task(broadcast_free_slot(bot, broadcast_data, exclude_tg_id=callback.from_user.id))
         
     else:
         await callback.answer(t["cancel_error"], show_alert=True)
         await start_cancel_process(callback, state)
 
 
-async def broadcast_free_slot(bot: Bot, text: str, exclude_tg_id: int):
+async def broadcast_free_slot(bot: Bot, data: dict, exclude_tg_id: int):
     """
-    Рассылает сообщение всем пользователям из БД.
-    Игнорирует ошибки блокировки бота пользователями.
+    Рассылает сообщение, подбирая язык для каждого пользователя.
     """
-    all_tg_ids = await get_all_users_with_tg()
+    # Получаем список (tg_id, lang_code)
+    users_data = await get_all_users_with_tg()
     
     count = 0
-    for tg_id in all_tg_ids:
+    for tg_id, user_lang in users_data:
         if tg_id == exclude_tg_id:
-            continue # Не отправляем тому, кто отменил
+            continue
             
+        # 1. Определяем словарь текстов для конкретного пользователя
+        # Если языка нет в словаре, берем RU по умолчанию
+        target_t = ALL_TEXTS.get(user_lang, ALL_TEXTS['RU'])
+        
+        # 2. Переводим тип машины (Washing/Drying) на язык получателя
+        if data["raw_machine_type"] == "WASH":
+            m_type_str = target_t.get("machine_type_wash", "Стирка")
+        else:
+            m_type_str = target_t.get("machine_type_dry", "Сушка")
+
+        # 3. Формируем текст на нужном языке
         try:
-            await bot.send_message(chat_id=tg_id, text=text)
+            notification_text = target_t["slot_freed_notification"].format(
+                date=data["date_str"],
+                time=data["time_str"],
+                m_type=m_type_str,
+                m_num=data["machine_num"]
+            )
+            
+            await bot.send_message(chat_id=tg_id, text=notification_text)
             count += 1
-            # Небольшая задержка, чтобы не словить лимиты телеграма (особенно если пользователей > 30)
             await asyncio.sleep(0.05) 
+
         except TelegramForbiddenError:
-            # Пользователь заблокировал бота
-            pass
+            pass # Бот заблокирован
         except TelegramRetryAfter as e:
-            # Лимит скорости, ждем
             await asyncio.sleep(e.retry_after)
             try:
-                await bot.send_message(chat_id=tg_id, text=text)
+                await bot.send_message(chat_id=tg_id, text=notification_text)
             except:
                 pass
         except Exception as e:

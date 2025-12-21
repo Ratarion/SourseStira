@@ -12,3 +12,4 @@ class Resident(Base):
     last_name: Mapped[str] = mapped_column(String, nullable=False)
     first_name: Mapped[str] = mapped_column(String, nullable=False)
     patronymic: Mapped[str] = mapped_column(String, nullable=False)
+    language: Mapped[str] = mapped_column(String, default='RU', nullable=False)

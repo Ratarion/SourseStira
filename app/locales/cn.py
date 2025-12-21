@@ -9,6 +9,7 @@ CNtexts = {
         "cancel_record": "取消预订",
         "exit": "退出",
         "back": "返回",
+        "change_language": "🌐 更改语言",
         "machine_type": "洗衣机",
         "select_machine_type": "选择机器类型",
         "for_wash": "用于洗涤",

@@ -9,6 +9,7 @@ ENtexts = {
         "cancel_record": "Cancel booking",
         "exit": "Exit",
         "back": "Back",
+        "change_language": "🌐 Change language",
         "machine_type": "Machine",
         "select_machine_type": "Select machine type",
         "for_wash": "for washing",

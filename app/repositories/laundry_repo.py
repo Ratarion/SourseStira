@@ -46,13 +46,31 @@ async def find_resident_by_id_card(id_card: int):
         result = await session.execute(query)
         return result.scalar_one_or_none()
 
-async def activate_resident_user(resident_id: int, tg_id: int):
+async def activate_resident_user(resident_id: int, tg_id: int, language: str = 'RU'):
+    """
+    Привязывает tg_id к жильцу и сохраняет выбранный язык.
+    """
     async with async_session() as session:
-        stmt = update(User).where(User.id == resident_id).values(tg_id=tg_id)
+        # Обновляем и tg_id, и language
+        stmt = update(User).where(User.id == resident_id).values(
+            tg_id=tg_id, 
+            language=language
+        )
         await session.execute(stmt)
         await session.commit()
+        
         result = await session.execute(select(User).where(User.id == resident_id))
         return result.scalar_one()
+    
+# 👇 Добавьте эту функцию, она пригодится для кнопки "Сменить язык" в будущем
+async def update_user_language(tg_id: int, new_language: str):
+    """
+    Обновляет язык для уже зарегистрированного пользователя.
+    """
+    async with async_session() as session:
+        stmt = update(User).where(User.tg_id == tg_id).values(language=new_language)
+        await session.execute(stmt)
+        await session.commit()
 
 # ==========================================
 # РАБОТА С МАШИНАМИ И БРОНЯМИ
@@ -151,12 +169,16 @@ async def cancel_booking(booking_id: int, user_tg_id: int) -> bool:
         await session.commit()
         return True
 
-async def get_all_users_with_tg() -> List[int]:
-    """Получает список tg_id всех пользователей для рассылки."""
+async def get_all_users_with_tg() -> List[tuple[int, str]]:
+    """
+    Возвращает список кортежей (tg_id, language) всех пользователей.
+    """
     async with async_session() as session:
-        query = select(User.tg_id).where(User.tg_id.is_not(None))
+        # Запрашиваем и ID, и язык
+        query = select(User.tg_id, User.language).where(User.tg_id.is_not(None))
         result = await session.execute(query)
-        return result.scalars().all()
+        # Возвращаем список кортежей, например: [(123, 'RU'), (456, 'CN')]
+        return result.all()
 
 # ==========================================
 # ОПТИМИЗИРОВАННАЯ ЛОГИКА КАЛЕНДАРЯ
@@ -320,3 +342,5 @@ async def get_booking_by_id(booking_id: int) -> Optional[Booking]:
         )
         result = await session.execute(query)
         return result.scalar_one_or_none()
+    
+
