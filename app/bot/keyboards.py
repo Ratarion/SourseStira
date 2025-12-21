@@ -81,3 +81,26 @@ def get_back_to_sections_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t.get("back", "Назад"), callback_data="back_to_sections")]
     ])
+
+def get_cancel_booking_keyboard(bookings: list, lang: str) -> InlineKeyboardMarkup:
+    t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
+    buttons = []
+    
+    for b in bookings:
+        # Формируем текст кнопки: 21.12 14:00 | Стиральная №1
+        date_str = b.start_time.strftime("%d.%m")
+        time_str = b.start_time.strftime("%H:%M")
+        
+        # Определяем тип машины локализованно
+        m_type_key = "machine_type_wash" if b.machine.type_machine == "WASH" else "machine_type_dry"
+        m_type = t.get(m_type_key, "Машина")
+        
+        btn_text = f"❌ {date_str} {time_str} | {m_type} №{b.machine.number_machine}"
+        
+        # callback_data содержит ID брони
+        buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"cancel_id_{b.id}")])
+    
+    # Кнопка Назад
+    buttons.append([InlineKeyboardButton(text=t["back"], callback_data="back_to_sections")])
+    
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

@@ -29,7 +29,11 @@ ENtexts = {
         "no_slots_available": "No slots available on the selected date.",
         "no_available_slots_alert": "No available machines at this time.",
         "slots_none": "No free slots available on {date}",
-
+        "cancel_prompt": "Select a booking to cancel.\nClick the button to free up the slot:",
+        "cancel_confirm_success": "✅ Booking cancelled successfully.\nA notification about the free slot has been sent to other residents.",
+        "cancel_error": "❌ Failed to cancel booking or it is already inactive.",
+        "slot_freed_notification": "🔔 <b>Slot available!</b>\n\n📅 Date: {date}\n⏰ Time: {time}\n🧺 {m_type} #{m_num}\n\nBook it now!",
+ 
         "machine_type_wash": "Washing",
         "machine_type_dry": "Drying",
         "no_active_machines_type": "No active machines of the selected type!",

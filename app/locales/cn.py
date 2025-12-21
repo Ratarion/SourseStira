@@ -37,6 +37,10 @@ CNtexts = {
         "machine_type_dry": "干燥",
         "no_active_machines_type": "没有选定类型的可用机器！",
         "no_active_machines": "当前没有可用的机器。",
+        "cancel_prompt": "选择要取消的预订。\n点击按钮释放时段：",
+        "cancel_confirm_success": "✅ 预订已成功取消。\n已向其他住户发送空位通知。",
+        "cancel_error": "❌ 取消失败或预订已失效。",
+        "slot_freed_notification": "🔔 <b>有空位了！</b>\n\n📅 日期: {date}\n⏰ 时间: {time}\n🧺 {m_type} №{m_num}\n\n快去预订吧！",
 
         "machines_none": "抱歉！此时间所有机器都已被占用。",
         "machine_prompt": "选择 {datetime} 的洗衣机:",

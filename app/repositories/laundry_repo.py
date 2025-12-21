@@ -122,18 +122,29 @@ async def get_user_bookings(user_id: int) -> List[Booking]:
         return result.scalars().all()
 
 async def cancel_booking(booking_id: int, tg_id: int) -> bool:
+    """
+    Меняет статус брони на 'cancelled' вместо удаления.
+    Проверяет, принадлежит ли бронь пользователю.
+    """
     async with async_session() as session:
-        result = await session.execute(
-            select(Booking)
-            .join(User, Booking.inidresidents == User.id)
-            .where(Booking.id == booking_id, User.tg_id == tg_id)
-        )
+        # Проверяем, что бронь принадлежит этому пользователю
+        stmt_check = select(Booking).join(User).where(Booking.id == booking_id, User.tg_id == tg_id)
+        result = await session.execute(stmt_check)
         booking = result.scalar_one_or_none()
+        
         if booking:
-            await session.delete(booking)
+            # Обновляем статус вместо удаления
+            booking.status = 'cancelled'
             await session.commit()
             return True
         return False
+
+async def get_all_users_with_tg() -> List[int]:
+    """Получает список tg_id всех пользователей для рассылки."""
+    async with async_session() as session:
+        query = select(User.tg_id).where(User.tg_id.is_not(None))
+        result = await session.execute(query)
+        return result.scalars().all()
 
 # ==========================================
 # ОПТИМИЗИРОВАННАЯ ЛОГИКА КАЛЕНДАРЯ
@@ -285,3 +296,15 @@ async def create_notification(resident_id: int, description: str, booking_id: Op
         await session.commit()
         await session.refresh(notification)
         return notification
+    
+
+async def get_booking_by_id(booking_id: int) -> Optional[Booking]:
+    """Получает бронь по ID с подгрузкой машины (для текста уведомления)."""
+    async with async_session() as session:
+        query = (
+            select(Booking)
+            .options(joinedload(Booking.machine))
+            .where(Booking.id == booking_id)
+        )
+        result = await session.execute(query)
+        return result.scalar_one_or_none()
