@@ -7,6 +7,7 @@ from app.bot.keyboards import get_section_keyboard
 from app.bot.states import DisplayRecords
 from app.repositories.laundry_repo import get_user_by_tg_id, get_user_bookings, cancel_booking
 import logging
+from app.bot.keyboards import get_back_to_sections_keyboard
 
 records_router = Router()
 
@@ -23,15 +24,16 @@ async def show_records(callback: CallbackQuery, state: FSMContext):
 
     bookings = await get_user_bookings(user.id)
     
+    # Кнопка "Назад", которую мы будем везде подставлять вместо меню
+    back_kb = get_back_to_sections_keyboard(lang)
+
     if not bookings:
         no_bookings_text = t.get("no_user_bookings", "У вас нет записей.")
-        await callback.message.edit_text(no_bookings_text, reply_markup=get_section_keyboard(lang))
-        await state.clear()
-        logging.info(f"No bookings for user {user.id}")
+        await callback.message.edit_text(no_bookings_text, reply_markup=back_kb)
         return
 
     lines = []
-
+    # Напоминаю: здесь мы уже убрали ID по твоей просьбе ранее
     for b in bookings[:20]:
         start_str = b.start_time.strftime("%d.%m.%Y %H:%M") if b.start_time else "—"
         machine_num = b.machine.number_machine if hasattr(b, 'machine') and b.machine else "—"
@@ -43,12 +45,23 @@ async def show_records(callback: CallbackQuery, state: FSMContext):
     text = title + "\n\n" + "\n".join(lines)
 
     try:
-        await callback.message.edit_text(text, reply_markup=get_section_keyboard(lang))
-    except TelegramBadRequest as e:
-        if "message is not modified" in str(e):
-            await callback.answer() # Просто убираем анимацию загрузки с кнопки
-        else:
-            raise e
+        # Используем back_kb вместо главного меню
+        await callback.message.edit_text(text, reply_markup=back_kb)
+    except TelegramBadRequest:
+        pass
 
+
+@records_router.callback_query(F.data == "back_to_sections")
+async def back_from_records(callback: CallbackQuery, state: FSMContext):
+    lang, t = await get_lang_and_texts(state)
+    
+    # Очищаем состояние (выходим из DisplayRecords)
+    await state.clear()
+    # Восстанавливаем выбранный язык
+    await state.update_data(lang=lang)
+
+    await callback.message.edit_text(
+        t["hello_user"].format(name=callback.from_user.first_name),
+        reply_markup=get_section_keyboard(lang)
+    )
     await callback.answer()
-    logging.info(f"Displayed {len(bookings)} bookings for user {user.id}")

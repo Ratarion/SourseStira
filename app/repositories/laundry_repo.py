@@ -278,7 +278,6 @@ async def create_notification(resident_id: int, description: str, booking_id: Op
     async with async_session() as session:
         notification = Notification(
             id_residents=resident_id,
-            id_booking=booking_id,
             create_date=datetime.now(),
             description=description
         )

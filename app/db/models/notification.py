@@ -8,6 +8,5 @@ class Notification(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     id_residents: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    id_booking: Mapped[int] = mapped_column(BigInteger, nullable=True)
     create_date: Mapped[datetime] = mapped_column(DateTime, default=datetime)
     description: Mapped[str] = mapped_column(String, nullable=False)

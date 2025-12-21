@@ -75,3 +75,9 @@ def get_time_slots_keyboard(date: datetime, slots: list[datetime], lang: str) ->
     buttons.append([InlineKeyboardButton(text=t["back"], callback_data="back_to_calendar")])
     buttons.append([InlineKeyboardButton(text=t["exit"], callback_data="exit")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_back_to_sections_keyboard(lang: str) -> InlineKeyboardMarkup:
+    t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t.get("back", "Назад"), callback_data="back_to_sections")]
+    ])
