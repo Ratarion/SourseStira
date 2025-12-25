@@ -38,15 +38,16 @@ async def _safe_create_task(coro):
 
 async def check_confirmations(bot: Bot):
     """
-    1) Находит записи за 60 минут до начала и рассылает запрос на подтверждение (кнопка).
+    1) Находит записи за 40 минут до начала и рассылает запрос на подтверждение (кнопка).
     2) Находит записи за 30 минут до начала, которые не подтверждены -> автo-отмена.
+    На ответ даеться 10 минут
     """
     now = datetime.now()
     logging.debug(f"check_confirmations run at {now.isoformat()}")
 
-    # --- ЭТАП 1: Рассылка запросов на подтверждение (за 60 минут) ---
+    # --- ЭТАП 1: Рассылка запросов на подтверждение (за 40 минут) ---
     try:
-        bookings_to_remind = await get_bookings_to_remind(minutes_before=10)
+        bookings_to_remind = await get_bookings_to_remind(minutes_before=40)
     except Exception as e:
         logging.error(f"Failed to fetch bookings_to_remind: {e}")
         bookings_to_remind = []
