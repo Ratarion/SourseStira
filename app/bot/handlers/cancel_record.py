@@ -1,4 +1,3 @@
-# app/bot/handlers/cancel_record.py
 import asyncio
 import logging
 from aiogram import Router, F, Bot

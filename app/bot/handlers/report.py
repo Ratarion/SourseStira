@@ -1,9 +1,7 @@
-# app/bot/handlers/report.py
 from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from app.bot.utils.translate import get_lang_and_texts
-# Импортируем клавиатуру с кнопкой "Назад"
 from app.bot.keyboards import get_section_keyboard, get_back_to_sections_keyboard
 from app.bot.states import Report
 from app.repositories.laundry_repo import get_user_by_tg_id, create_notification

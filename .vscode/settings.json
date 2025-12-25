@@ -14,7 +14,7 @@
         "app/__pycache__": true,
         "app/bot/__pycache__": true,
         "app/bot/handlers/__pycache__": true,
-        "app/bot/handlers/__init__.py": false,
+        "app/bot/handlers/__init__.py": true,
         "app/bot/__init__.py": true,
         "app/config/__pycache__": true,
         "app/config/__init__.py": true,
@@ -23,7 +23,9 @@
         "app/repositories/__init__.py": true,
         "app/locales/__pycache__": true,
         "app/locales/__init__.py": true,
-        ".gitignore": true
+        ".gitignore": true,
+        "app/bot/utils/__init__.py": true,
+        "app/bot/utils/__pycache__": true
     },
     "hide-files.files": [],
     "CodeGPT.apiKey": "CodeGPT Plus Beta"

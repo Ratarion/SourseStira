@@ -1,4 +1,3 @@
-# app/bot/handlers/auth.py
 from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
