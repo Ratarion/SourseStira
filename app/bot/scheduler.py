@@ -138,7 +138,8 @@ async def check_confirmations(bot: Bot):
         # 3. Рассылаем всем остальным, что слот свободен
         booking_data = {
             "date_str": b.start_time.strftime("%d.%m"),
-            "time_str": b.start_time.strftime("%H:%M"),
+            "start_time_str": b.start_time.strftime("%H:%M"),
+            "end_time_str": b.end_time.strftime("%H:%M"),
             "machine_type": getattr(b.machine, "type_machine", "") if getattr(b, "machine", None) else "",
             "machine_num": getattr(b.machine, "number_machine", "") if getattr(b, "machine", None) else ""
         }

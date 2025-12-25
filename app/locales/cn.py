@@ -43,7 +43,7 @@ CNtexts = {
         ),
         "confirm_btn": "✅ 我会来",
         "booking_confirmed": "✅ 预约已确认！期待您的到来。",
-        "booking_autocanceled": "❌ 由于未及时确认，您在 <b>{datetime}</b>（时间：{time}）的预约已被自动取消。",
+        "booking_autocanceled": "❌ 您在 <b>{date}</b> ({time_range}) 机器 ({machine_type}) 的预约已被自动取消，因为您未及时确认。",
         "booking_already_confirmed": "该预约已确认或已取消。",
         "no_active_machines_type": "没有选定类型的可用机器！",
         "no_active_machines": "当前没有可用的机器。",

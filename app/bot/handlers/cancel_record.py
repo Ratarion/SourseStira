@@ -56,11 +56,12 @@ async def process_cancel_booking(callback: CallbackQuery, state: FSMContext, bot
         # Обновляем список, так как эта запись исчезла
         await start_cancel_process(callback, state)
         return
+    
 
     # Сохраняем данные для рассылки
     booking_data = {
         "date_str": booking.start_time.strftime("%d.%m"),
-        "time_str": booking.start_time.strftime("%H:%M"),
+        "time_str": f"{booking.start_time.strftime('%H:%M')} - {booking.end_time.strftime('%H:%M')}",
         "machine_type": booking.machine.type_machine,
         "machine_num": booking.machine.number_machine
     }
