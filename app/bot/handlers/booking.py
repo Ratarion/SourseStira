@@ -63,25 +63,35 @@ async def process_record_start(callback: CallbackQuery, state: FSMContext):
 @booking_router.callback_query(F.data.startswith("type_"), AddRecord.waiting_for_machine_type)
 async def process_machine_type(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
-    machine_type_callback = callback.data.split("_")[1]
+    machine_type_callback = callback.data.split("_")[1] # "WASH" или "DRY"
+    
+    # ПРИВЯЗЫВАЕМСЯ К ЗНАЧЕНИЯМ В БД (они у тебя на русском)
     if machine_type_callback == "WASH":
-        machine_type_db = t["machine_type_wash"]
+        machine_type_db = "Стиральная"
         header_text = f"📅 {t['record_start']} {t['for_wash']}"
     else:
-        machine_type_db = t["machine_type_dry"]
+        machine_type_db = "Сушильная"
         header_text = f"📅 {t['record_start']} {t['for_dry']}"
 
+    # Теперь в state и в запросы улетит "Стиральная", и БД найдет машины
     await state.update_data(machine_type=machine_type_db)
+    
     now = datetime.now()
+    # Теперь эти функции получат правильный тип и вернут реальные цифры, а не 0
     workload = await get_month_workload(now.year, now.month, machine_type_db)
     max_capacity = await get_total_daily_capacity_by_type(machine_type_db)
+    
     await state.update_data(max_capacity=max_capacity)
 
     calendar = CustomLaundryCalendar(workload=workload, max_capacity=max_capacity, locale=lang.lower())
+    
     await callback.message.edit_text(
         header_text,
         reply_markup=await calendar.start_calendar(
-            year=now.year, month=now.month, header_text=header_text, back_callback="back_to_sections"
+            year=now.year, 
+            month=now.month, 
+            header_text=header_text, 
+            back_callback="back_to_machine_type"
         )
     )
     await state.set_state(AddRecord.waiting_for_day)
@@ -279,6 +289,16 @@ async def process_back_to_time(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_time_slots_keyboard(chosen_date, slots, lang)
     )
     await state.set_state(AddRecord.waiting_for_time)
+    await callback.answer()
+
+@booking_router.callback_query(F.data == "back_to_machine_type")
+async def back_to_machine_type(callback: CallbackQuery, state: FSMContext):
+    lang, t = await get_lang_and_texts(state)
+    await callback.message.edit_text(
+        t["select_machine_type"],
+        reply_markup=get_machine_type_keyboard(lang)
+    )
+    await state.set_state(AddRecord.waiting_for_machine_type)
     await callback.answer()
 
 

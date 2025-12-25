@@ -93,7 +93,11 @@ def get_cancel_booking_keyboard(bookings: list, lang: str) -> InlineKeyboardMark
         time_str = b.start_time.strftime("%H:%M")
         
         # Определяем тип машины локализованно
-        m_type_key = "machine_type_wash" if b.machine.type_machine == "WASH" else "machine_type_dry"
+        m_db_type = str(b.machine.type_machine)
+        if m_db_type == "Стиральная":
+            m_type_key = "machine_type_wash"
+        else:
+            m_type_key = "machine_type_dry"
         m_type = t.get(m_type_key, "Машина")
         
         btn_text = f"❌ {date_str} {time_str} | {m_type} №{b.machine.number_machine}"

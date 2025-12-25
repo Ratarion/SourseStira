@@ -110,7 +110,7 @@ async def create_booking(user_id: int, machine_id: int, start_time: datetime, du
             inidmachine=machine_id,
             start_time=start_time,
             end_time=end_time,
-            status="active"
+            status="Ожидание"
         )
         session.add(booking)
         await session.commit()
@@ -139,33 +139,36 @@ async def get_user_bookings(user_id: int) -> List[Booking]:
         result = await session.execute(query)
         return result.scalars().all()
 
-async def cancel_booking(booking_id: int, user_tg_id: int) -> bool:
+async def cancel_booking(booking_id: int, user_tg_id: int = None) -> bool:
+    """
+    Если user_tg_id передан — проверяем, принадлежит ли бронь этому юзеру.
+    Если user_tg_id is None — считаем, что это системная отмена (планировщик), и удаляем без проверок владельца.
+    """
     async with async_session() as session:
-        # 1. Сначала находим пользователя по tg_id
-        user_query = select(User).where(User.tg_id == user_tg_id)
-        user_result = await session.execute(user_query)
-        user = user_result.scalar_one_or_none()
-        
-        if not user:
-            return False
-
-        # 2. Проверяем существование брони именно для этого пользователя
-        # Используем обычный фильтр по полю inidresidents
-        stmt_check = (
-            select(Booking)
-            .where(
-                Booking.id == booking_id,
-                Booking.inidresidents == user.id  # Сравнение ID пользователя
-            )
-        )
-        result = await session.execute(stmt_check)
+        # 1. Находим бронь
+        stmt_get = select(Booking).where(Booking.id == booking_id)
+        result = await session.execute(stmt_get)
         booking = result.scalar_one_or_none()
-
+        
         if not booking:
             return False
 
-        # 3. Меняем статус на cancelled
-        booking.status = 'Отменено'
+        # 2. Если это ручная отмена пользователем — проверяем владельца
+        if user_tg_id is not None:
+            user_query = select(User).where(User.tg_id == user_tg_id)
+            user_result = await session.execute(user_query)
+            user = user_result.scalar_one_or_none()
+            
+            if not user or booking.inidresidents != user.id:
+                return False # Пытается отменить чужую запись
+
+        # 3. Меняем статус (или удаляем)
+        # Если вы хотите полностью удалять запись из БД:
+        # await session.delete(booking) 
+        
+        # Если вы хотите оставлять историю со статусом:
+        booking.status = 'Отменено' # Убедитесь, что это совпадает с ENUM в базе или логикой
+        
         await session.commit()
         return True
 
@@ -344,3 +347,49 @@ async def get_booking_by_id(booking_id: int) -> Optional[Booking]:
         return result.scalar_one_or_none()
     
 
+
+
+async def get_bookings_to_remind(minutes_before: int = 40):
+    """Ищет записи, которые начнутся через minutes_before, и статус еще не 'wait_confirm'/'confirmed'"""
+    # Логика: start_time в интервале [now + minutes_before, now + minutes_before + 2 min]
+    # Чтобы не спамить, берем узкое окно
+    now = datetime.now()
+    target_time = now + timedelta(minutes=minutes_before)
+    window = timedelta(minutes=2) 
+    
+    async with async_session() as session:
+        # Ищем записи, статус которых (active или None) и время подходит
+        query = select(Booking).options(joinedload(Booking.user)).where(
+            and_(
+                Booking.start_time >= target_time,
+                Booking.start_time <= target_time + window,
+                or_(Booking.status == 'active', Booking.status == None) 
+            )
+        )
+        result = await session.execute(query)
+        return result.scalars().all()
+    
+async def set_booking_status(booking_id: int, status: str):
+    async with async_session() as session:
+        query = update(Booking).where(Booking.id == booking_id).values(status=status)
+        await session.execute(query)
+        await session.commit()
+
+async def get_expired_unconfirmed_bookings(minutes_before_deadline: int = 30):
+    """Ищет записи, которые вот-вот начнутся (30 мин), но статус 'wait_confirm' (не подтвердили)"""
+    now = datetime.now()
+    # Если время старта <= now + 30 min и статус все еще wait_confirm
+    # Берем записи, которые стартуют в ближайшие 30-31 минуту
+    target_time = now + timedelta(minutes=minutes_before_deadline)
+    window = timedelta(minutes=2)
+
+    async with async_session() as session:
+        query = select(Booking).options(joinedload(Booking.machine), joinedload(Booking.user)).where(
+            and_(
+                Booking.start_time <= target_time + window,
+                Booking.start_time >= target_time, 
+                Booking.status == 'wait_confirm'
+            )
+        )
+        result = await session.execute(query)
+        return result.scalars().all()

@@ -15,6 +15,9 @@ from app.bot.handlers.auth import auth_router
 from app.bot.handlers.booking import booking_router
 from app.bot.handlers.records import records_router
 from app.bot.handlers.report import report_router
+from app.bot.scheduler import start_scheduler
+from app.bot.handlers.confirmation import confirm_router
+
 from app.db.base import init_db
 
 TOKEN = cfg.BOT_TOKEN
@@ -28,6 +31,9 @@ async def main():
     dp.include_router(records_router)
     dp.include_router(report_router)
     dp.include_router(cancel_record_router)
+    dp.include_router(confirm_router)
+
+    start_scheduler(bot)
 
     max_retries = 5
     for attempt in range(1, max_retries + 1):

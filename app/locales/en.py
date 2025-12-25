@@ -12,6 +12,11 @@ ENtexts = {
         "change_language": "🌐 Change language",
         "machine_type": "Machine",
         "select_machine_type": "Select machine type",
+        "confirm_booking_prompt": "⏳ <b>Booking confirmation</b>\n\nYou have a laundry/drying scheduled for <b>{time}</b>.\nPlease confirm your booking, otherwise it will be automatically canceled in 10 minutes.",
+        "confirm_btn": "✅ I will come",
+        "booking_confirmed": "✅ Booking confirmed! We are waiting for you.",
+        "booking_autocanceled": "❌ Your booking for <b>{time}</b> was automatically canceled because it was not confirmed in time.",
+        "booking_already_confirmed": "This booking has already been confirmed or canceled.",
         "for_wash": "for washing",
         "for_dry": "for drying",
 
