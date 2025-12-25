@@ -23,14 +23,14 @@ async def process_confirm(callback: CallbackQuery):
         await callback.message.delete()
         return
 
-    if booking.status == 'confirmed':
+    if booking.status == 'Подтверждено':
          await callback.answer(t["booking_already_confirmed"], show_alert=True)
          # Можно удалить кнопку
          await callback.message.edit_reply_markup(reply_markup=None)
          return
 
     # Обновляем статус
-    await set_booking_status(booking_id, "confirmed")
+    await set_booking_status(booking_id, "Подтверждено")
     
     await callback.message.edit_text(t["booking_confirmed"])
     await callback.answer()

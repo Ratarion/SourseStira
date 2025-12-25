@@ -1,4 +1,4 @@
-# --- Китайский СЛОВАРЬ ЛОКАЛИЗАЦИИ ---
+# --- CN (обновлённый, упрощённый китайский) ---
 CNtexts = {
     "CN": {
         "hello_user": "你好, {name}! 请选择一个操作:",
@@ -22,7 +22,7 @@ CNtexts = {
         # ⚠️ 已存在（保留）
         "time_prompt": "选择 {date} 的时间:",
 
-        # ✅ 新增 ключи（必须）
+        # ✅ 新增/统一 ключи（必须）
         "select_time_prompt": "选择 {date} 的时间:",
         "select_date_prompt": "请选择日期",
         "day_fully_booked": "该日期已被全部预订。",
@@ -32,15 +32,19 @@ CNtexts = {
         "slots_none": "{date} 无可用时段",
 
         "machine_type_wash": "洗衣",
+        "machine_type_dry": "干燥",
         "machine": "机器",
         "show_records_title": "您的预约：",
         "no_user_bookings": "您当前没有预约。",
-        "confirm_booking_prompt": "⏳ <b>预约确认</b>\n\n您已预约在 <b>{time}</b> 进行洗衣/烘干。\n请确认预约，否则将在 10 分钟后自动取消。",
+        "confirm_booking_prompt": (
+            "⏳ <b>预约确认</b>\n\n"
+            "您已预约在 <b>{datetime}</b>（时间：{time}）进行洗衣/烘干。\n"
+            "请确认预约，否则将在 10 分钟后自动取消。"
+        ),
         "confirm_btn": "✅ 我会来",
         "booking_confirmed": "✅ 预约已确认！期待您的到来。",
-        "booking_autocanceled": "❌ 您在 <b>{time}</b> 的预约因未及时确认已被自动取消。",
+        "booking_autocanceled": "❌ 由于未及时确认，您在 <b>{datetime}</b>（时间：{time}）的预约已被自动取消。",
         "booking_already_confirmed": "该预约已确认或已取消。",
-        "machine_type_dry": "干燥",
         "no_active_machines_type": "没有选定类型的可用机器！",
         "no_active_machines": "当前没有可用的机器。",
         "cancel_prompt": "选择要取消的预订。\n点击按钮释放时段：",

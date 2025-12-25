@@ -88,7 +88,7 @@ def get_cancel_booking_keyboard(bookings: list, lang: str) -> InlineKeyboardMark
     buttons = []
     
     for b in bookings:
-        # Формируем текст кнопки: 21.12 14:00 | Стиральная №1
+        # Формируем текст кнопки: 21.12 14:00 | Машиа (Стиральная) №1
         date_str = b.start_time.strftime("%d.%m")
         time_str = b.start_time.strftime("%H:%M")
         

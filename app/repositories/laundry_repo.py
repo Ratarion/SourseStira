@@ -163,9 +163,6 @@ async def cancel_booking(booking_id: int, user_tg_id: int = None) -> bool:
                 return False # Пытается отменить чужую запись
 
         # 3. Меняем статус (или удаляем)
-        # Если вы хотите полностью удалять запись из БД:
-        # await session.delete(booking) 
-        
         # Если вы хотите оставлять историю со статусом:
         booking.status = 'Отменено' # Убедитесь, что это совпадает с ENUM в базе или логикой
         
@@ -363,7 +360,7 @@ async def get_bookings_to_remind(minutes_before: int = 40):
             and_(
                 Booking.start_time >= target_time,
                 Booking.start_time <= target_time + window,
-                or_(Booking.status == 'active', Booking.status == None) 
+                or_(Booking.status == 'Ожидание', Booking.status == None) 
             )
         )
         result = await session.execute(query)
@@ -388,7 +385,7 @@ async def get_expired_unconfirmed_bookings(minutes_before_deadline: int = 30):
             and_(
                 Booking.start_time <= target_time + window,
                 Booking.start_time >= target_time, 
-                Booking.status == 'wait_confirm'
+                Booking.status == 'Ожидание'
             )
         )
         result = await session.execute(query)

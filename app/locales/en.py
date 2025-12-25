@@ -1,4 +1,4 @@
-# --- СЛОВАРЬ ЛОКАЛИЗАЦИИ ---
+# --- EN (обновлённый) ---
 ENtexts = {
     "ENG": {
         "hello_user": "Hello, {name}! Choose an action:",
@@ -12,10 +12,14 @@ ENtexts = {
         "change_language": "🌐 Change language",
         "machine_type": "Machine",
         "select_machine_type": "Select machine type",
-        "confirm_booking_prompt": "⏳ <b>Booking confirmation</b>\n\nYou have a laundry/drying scheduled for <b>{time}</b>.\nPlease confirm your booking, otherwise it will be automatically canceled in 10 minutes.",
+        "confirm_booking_prompt": (
+            "⏳ <b>Booking confirmation</b>\n\n"
+            "You have a laundry/drying scheduled for <b>{datetime}</b> (time: {time}).\n"
+            "Please confirm your booking, otherwise it will be automatically canceled in 10 minutes."
+        ),
         "confirm_btn": "✅ I will come",
         "booking_confirmed": "✅ Booking confirmed! We are waiting for you.",
-        "booking_autocanceled": "❌ Your booking for <b>{time}</b> was automatically canceled because it was not confirmed in time.",
+        "booking_autocanceled": "❌ Your booking for <b>{datetime}</b> (time: {time}) was automatically canceled because it was not confirmed in time.",
         "booking_already_confirmed": "This booking has already been confirmed or canceled.",
         "for_wash": "for washing",
         "for_dry": "for drying",
@@ -39,7 +43,7 @@ ENtexts = {
         "cancel_confirm_success": "✅ Booking cancelled successfully.\nA notification about the free slot has been sent to other residents.",
         "cancel_error": "❌ Failed to cancel booking or it is already inactive.",
         "slot_freed_notification": "🔔 <b>Slot available!</b>\n\n📅 Date: {date}\n⏰ Time: {time}\n🧺 {m_type} #{m_num}\n\nBook it now!",
- 
+
         "machine_type_wash": "Washing",
         "machine_type_dry": "Drying",
         "no_active_machines_type": "No active machines of the selected type!",
@@ -60,6 +64,6 @@ ENtexts = {
         "other_tg_id": "This user is already registered with another account.",
         "seek_cards": "No user with this name was found. Enter your student ID number (numbers only)",
         "auth": "Enter your full name (surname, first name, and patronymic) to log in",
-        "write_FIO": "Please enter your full name (at least 2 words).",
+        "write_FIO": "Please enter your full name (at least 2 words)."
     }
 }
