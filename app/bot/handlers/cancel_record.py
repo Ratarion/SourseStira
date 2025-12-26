@@ -61,8 +61,9 @@ async def process_cancel_booking(callback: CallbackQuery, state: FSMContext, bot
     # Сохраняем данные для рассылки
     booking_data = {
         "date_str": booking.start_time.strftime("%d.%m"),
-        "time_str": f"{booking.start_time.strftime('%H:%M')} - {booking.end_time.strftime('%H:%M')}",
-        "machine_type": booking.machine.type_machine,
+        "start_time_str": booking.start_time.strftime("%H:%M"),
+        "end_time_str": booking.end_time.strftime("%H:%M"),
+        "machine_type": booking.machine.type_machine, 
         "machine_num": booking.machine.number_machine
     }
 

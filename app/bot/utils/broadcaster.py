@@ -6,16 +6,6 @@ from app.bot.utils.translate import ALL_TEXTS
 from app.repositories.laundry_repo import get_all_users_with_tg
 
 async def broadcast_slot_freed(bot: Bot, booking_data: dict, exclude_tg_id: int = None):
-    """
-    Рассылает уведомление об освободившемся слоте всем пользователям.
-    
-    booking_data ожидает:
-        - date_str: "21.12"
-        - start_time_str: "14:00"
-        - end_time_str: "15:30"
-        - machine_type: "Стиральная" или "Сушильная"
-        - machine_num: int
-    """
     users = await get_all_users_with_tg()
     count = 0
 
@@ -27,30 +17,30 @@ async def broadcast_slot_freed(bot: Bot, booking_data: dict, exclude_tg_id: int 
         if not tg_id:
             continue
 
-        # Локализация
+        # Выбор локали
         lang = getattr(u, "language", "RU")
         t = ALL_TEXTS.get(lang) or ALL_TEXTS.get("RU")
 
-        # Сопоставление типа машины (база -> перевод)
+        # 1. Исправление типа машины (база хранит "Стиральная"/"Сушильная")
         raw_type = booking_data.get("machine_type", "")
         if raw_type == "Стиральная":
-            m_type = t.get("machine_type_wash", "Wash")
+            m_type = t.get("machine_type_wash", "Стиральная")
         elif raw_type == "Сушильная":
-            m_type = t.get("machine_type_dry", "Dry")
+            m_type = t.get("machine_type_dry", "Сушильная")
         else:
             m_type = raw_type
 
-        # Формируем строку времени
+        # 2. Исправление времени (используем ключи из scheduler.py)
+        # Формируем интервал: "14:00 – 15:30"
         time_range = f"{booking_data.get('start_time_str')} – {booking_data.get('end_time_str')}"
 
-        # Получаем шаблон и форматируем
-        # В переводах (ru.py/en.py) ключ slot_freed_notification должен поддерживать {time}
+        # Формируем текст (включаем parse_mode="HTML" для поддержки <b> из словарей)
         notification_text = t.get(
             "slot_freed_notification",
-            "🔔 Slot available!\n\n📅 Date: {date}\n⏰ Time: {time}\n🧺 {m_type} #{m_num}"
+            "🔔 <b>Slot available!</b>\n\n📅 Date: {date}\n⏰ Time: {time}\n🧺 {m_type} #{m_num}"
         ).format(
             date=booking_data.get("date_str", ""),
-            time=time_range,
+            time=time_range,  # Передаем сформированную строку
             m_type=m_type,
             m_num=booking_data.get("machine_num", "")
         )
@@ -58,16 +48,7 @@ async def broadcast_slot_freed(bot: Bot, booking_data: dict, exclude_tg_id: int 
         try:
             await bot.send_message(chat_id=tg_id, text=notification_text, parse_mode="HTML")
             count += 1
-            await asyncio.sleep(0.05) # Лимит Telegram ~30 сообщений в секунду
-        except TelegramForbiddenError:
-            continue
-        except TelegramRetryAfter as e:
-            await asyncio.sleep(e.retry_after)
-            try:
-                await bot.send_message(chat_id=tg_id, text=notification_text, parse_mode="HTML")
-                count += 1
-            except Exception:
-                pass
+            await asyncio.sleep(0.05) 
         except Exception as e:
             logging.error(f"Error sending to {tg_id}: {e}")
 
