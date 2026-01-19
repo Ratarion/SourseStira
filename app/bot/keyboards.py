@@ -88,9 +88,10 @@ def get_cancel_booking_keyboard(bookings: list, lang: str) -> InlineKeyboardMark
     buttons = []
     
     for b in bookings:
-        # Формируем текст кнопки: 21.12 14:00 | Машиа (Стиральная) №1
+        # Формируем текст кнопки: 21.12 14:00-15:30 | Стиральная №1
         date_str = b.start_time.strftime("%d.%m")
-        time_str = b.start_time.strftime("%H:%M")
+        start_time_str = b.start_time.strftime("%H:%M")
+        end_time_str = b.end_time.strftime("%H:%M")
         
         # Определяем тип машины локализованно
         m_db_type = str(b.machine.type_machine)
@@ -100,7 +101,7 @@ def get_cancel_booking_keyboard(bookings: list, lang: str) -> InlineKeyboardMark
             m_type_key = "machine_type_dry"
         m_type = t.get(m_type_key, "Машина")
         
-        btn_text = f"❌ {date_str} {time_str} | {m_type} №{b.machine.number_machine}"
+        btn_text = f"❌ {date_str} {start_time_str}-{end_time_str} | {m_type} №{b.machine.number_machine}"
         
         # callback_data содержит ID брони
         buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"cancel_id_{b.id}")])
@@ -109,3 +110,10 @@ def get_cancel_booking_keyboard(bookings: list, lang: str) -> InlineKeyboardMark
     buttons.append([InlineKeyboardButton(text=t["back"], callback_data="back_to_sections")])
     
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_notification_keyboard(lang: str) -> InlineKeyboardMarkup:
+    t = ALL_TEXTS.get(lang, ALL_TEXTS["RU"])
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t["back_to_main"], callback_data="show_main_menu")]
+    ])

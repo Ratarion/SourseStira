@@ -1,9 +1,12 @@
+# broadcaster.py (полный обновленный код)
+
 import asyncio
 import logging
 from aiogram import Bot
 from aiogram.exceptions import TelegramRetryAfter, TelegramForbiddenError
 from app.bot.utils.translate import ALL_TEXTS
 from app.repositories.laundry_repo import get_all_users_with_tg
+from app.bot.keyboards import get_exit_keyboard  # <--- ДОБАВЬТЕ ИМПОРТ
 
 async def broadcast_slot_freed(bot: Bot, booking_data: dict, exclude_tg_id: int = None):
     users = await get_all_users_with_tg()
@@ -46,9 +49,18 @@ async def broadcast_slot_freed(bot: Bot, booking_data: dict, exclude_tg_id: int 
         )
 
         try:
-            await bot.send_message(chat_id=tg_id, text=notification_text, parse_mode="HTML")
+            await bot.send_message(
+                chat_id=tg_id, 
+                text=notification_text, 
+                parse_mode="HTML",
+                reply_markup=get_exit_keyboard(lang)  # <--- ДОБАВЛЕНО: Клавиатура с кнопкой
+            )
             count += 1
             await asyncio.sleep(0.05) 
+        except TelegramRetryAfter as e:
+            await asyncio.sleep(e.retry_after)
+        except TelegramForbiddenError:
+            logging.warning(f"User {tg_id} blocked the bot.")
         except Exception as e:
             logging.error(f"Error sending to {tg_id}: {e}")
 

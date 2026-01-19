@@ -32,6 +32,8 @@ from app.repositories.laundry_repo import (
     get_user_bookings
 )
 
+import logging
+
 booking_router = Router()
 
 # helper for colored calendar (можно использовать если нужно создать календарь отдельно)
@@ -232,8 +234,12 @@ async def process_machine(callback: CallbackQuery, state: FSMContext):
 @booking_router.callback_query(F.data == "back_to_sections", AddRecord.waiting_for_machine_type)
 async def process_back_to_sections(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
+    user = await get_user_by_tg_id(callback.from_user.id)
+    
+    db_name = user.first_name 
+
     await callback.message.edit_text(
-        t["hello_user"].format(name=callback.from_user.first_name),
+        t["hello_user"].format(name=db_name),
         reply_markup=get_section_keyboard(lang)
     )
     await state.clear()
@@ -302,14 +308,26 @@ async def back_to_machine_type(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@booking_router.callback_query(F.data == "exit")
+@booking_router.callback_query(F.data == "exit")  # <--- Проверьте, совпадает ли это с callback_data кнопки
 async def process_exit(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
+    
+    # 1. Получаем пользователя из БД по Telegram ID
+    user = await get_user_by_tg_id(callback.from_user.id)
+
+    # 3. Диагностика (по желанию, чтобы убедиться в логах)
+    logging.info(f"DB Name: {user.first_name} | TG Name: {callback.from_user.first_name}")
+
+    # 4. ВАЖНО: Берем имя ИМЕННО из объекта user (из БД)
+    # user.first_name — это имя из базы (Инцзе)
+    # callback.from_user.first_name — это имя из ТГ (Стас)
+    
+    db_name = user.first_name  # Принудительно берем из БД
+    
     await callback.message.edit_text(
-        t["hello_user"].format(name=callback.from_user.first_name),
+        t["hello_user"].format(name=db_name), # Передаем имя из БД
         reply_markup=get_section_keyboard(lang)
     )
-    await state.clear()
     await callback.answer()
 
 

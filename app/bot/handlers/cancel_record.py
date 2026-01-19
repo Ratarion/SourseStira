@@ -13,8 +13,7 @@ from app.repositories.laundry_repo import (
     get_user_by_tg_id, 
     get_user_bookings, 
     cancel_booking, 
-    get_booking_by_id, 
-    get_all_users_with_tg
+    get_booking_by_id
 )
 from app.bot.utils.broadcaster import broadcast_slot_freed
 
@@ -93,8 +92,16 @@ async def process_cancel_booking(callback: CallbackQuery, state: FSMContext, bot
 @cancel_record_router.callback_query(F.data == "back_to_sections", CancelRecord.waiting_for_cancel)
 async def back_from_cancel(callback: CallbackQuery, state: FSMContext):
     lang, t = await get_lang_and_texts(state)
+    
+    # ДОБАВЛЕНО: Получаем user из БД
+    user = await get_user_by_tg_id(callback.from_user.id)
+    if not user:
+        await callback.answer(t["none_user"], show_alert=True)
+        return
+    
     await state.clear()
     await callback.message.edit_text(
-        t["hello_user"].format(name=callback.from_user.first_name),
+        t["hello_user"].format(name=user.first_name),  # ИЗМЕНЕНО: из БД
         reply_markup=get_section_keyboard(lang)
     )
+    await callback.answer()

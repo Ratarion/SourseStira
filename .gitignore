@@ -3,3 +3,5 @@
 **/_*
 venv
 .venv
+logs.txt
+logs

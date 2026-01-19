@@ -23,22 +23,34 @@ async def get_user_by_tg_id(tg_id: int):
         return result.scalar_one_or_none()
 
 async def find_resident_by_fio(fio_parts: list[str]):
-    if len(fio_parts) < 3:
+    if len(fio_parts) < 2:
         return None
-    last_name, first_name, patronymic = fio_parts[0], fio_parts[1], fio_parts[2]
+
+    # Гибкое присваивание
+    last_name = fio_parts[0]
+    first_name = fio_parts[1]
+    patronymic = ' '.join(fio_parts[2:]) if len(fio_parts) > 2 else ''  # Объединяем лишние слова или оставляем пустым
 
     async with async_session() as session:
-        query = select(User).where(
-            User.last_name == last_name,
-            User.first_name == first_name,
-            User.patronymic == patronymic
-        )
+        # Используем ilike для case-insensitive (полезно для транслитерации)
+        conditions = [
+            User.last_name.ilike(last_name),
+            User.first_name.ilike(first_name)
+        ]
+        if patronymic:
+            conditions.append(User.patronymic.ilike(patronymic))
+        else:
+            # Если patronymic не указан, ищем где оно пустое или NULL
+            conditions.append(or_(User.patronymic == '', User.patronymic.is_(None)))
+
+        query = select(User).where(and_(*conditions))
         result = await session.execute(query)
         found_users = result.scalars().all()
         
         if len(found_users) == 1:
             return found_users[0]
         return None
+
 
 async def find_resident_by_id_card(id_card: int):
     async with async_session() as session:

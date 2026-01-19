@@ -49,7 +49,7 @@ async def set_language(callback: CallbackQuery, state: FSMContext):
     if user:
         # --- ЕСЛИ ПОЛЬЗОВАТЕЛЬ УЖЕ ЕСТЬ В БАЗЕ ---
         # Обновляем язык в базе данных
-        await update_user_language(user.id, lang)
+        await update_user_language(tg_id, lang)
         
         # Отправляем главное меню на новом языке
         # Используем .replace, как у вас принято в проекте, или .format

@@ -1,10 +1,10 @@
 {
     "files.exclude": {
-        "**/.git": true,
-        "**/.svn": true,
-        "**/.hg": true,
-        "**/.DS_Store": true,
-        "**/Thumbs.db": true,
+        "**/.git": false,
+        "**/.svn": false,
+        "**/.hg": false,
+        "**/.DS_Store": false,
+        "**/Thumbs.db": false,
         "app/__init__.py": true,
         "app/db/models/__pycache__": true,
         "app/db/models/__init__.py": true,
@@ -23,9 +23,11 @@
         "app/repositories/__init__.py": true,
         "app/locales/__pycache__": true,
         "app/locales/__init__.py": true,
-        ".gitignore": true,
+        ".gitignore": false,
         "app/bot/utils/__init__.py": true,
-        "app/bot/utils/__pycache__": true
+        "app/bot/utils/__pycache__": true,
+        ".git": true,
+        ".git/info": true
     },
     "hide-files.files": [],
     "CodeGPT.apiKey": "CodeGPT Plus Beta"

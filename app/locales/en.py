@@ -5,6 +5,8 @@ ENtexts = {
         "welcome_lang_choice": "Hello, choose a language",
         "record_laundry": "Book a wash",
         "report_in_admin": "Report a problem",
+        "report_prompt": "Specify the machine number and type, and describe the problem:",
+        "report_too_long": "Message is too long. Please shorten it and send again.",
         "show_records": "Show my bookings",
         "cancel_record": "Cancel booking",
         "exit": "Exit",
@@ -14,12 +16,13 @@ ENtexts = {
         "select_machine_type": "Select machine type",
         "confirm_booking_prompt": (
             "⏳ <b>Booking confirmation</b>\n\n"
-            "You have a laundry/drying scheduled for <b>{datetime}</b> (time: {time}).\n"
+            "You have scheduled {machine_type} machine №{machine_num} on <b>{date}</b> "
+            "(time: {time_range}).\n"
             "Please confirm your booking, otherwise it will be automatically canceled in 10 minutes."
         ),
         "confirm_btn": "✅ I will come",
         "booking_confirmed": "✅ Booking confirmed! We are waiting for you.",
-        "booking_autocanceled": "❌ Your booking for <b>{date}</b> ({time}) Machine ({machine_type}) was automatically canceled because you did not confirm it in time.",
+        "booking_autocanceled": "❌ Your booking Date: {date} Time: {time_range} Machine: {machine_type} №{machine_num} was automatically canceled because you did not confirm it in time.",
         "booking_already_confirmed": "This booking has already been confirmed or canceled.",
         "for_wash": "for washing",
         "for_dry": "for drying",
@@ -53,7 +56,7 @@ ENtexts = {
         "section_menu_title": "Main menu",
 
         "machines_none": "Oops! All machines are busy at this time.",
-        "machine_prompt": "Select a washing machine for {datetime}:",
+        "machine_prompt": "Select a machine for {date}, {start} – {end}:",
         "booking_success": "Booking created!\nMachine №{machine_num}\n{start} – {end}",
         "booking_error": "The slot is already taken by another user!",
         "slot_just_taken": "Sorry — someone just took this slot. Try another one.",

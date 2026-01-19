@@ -13,6 +13,7 @@ from app.repositories.laundry_repo import (
 )
 from app.bot.utils.translate import ALL_TEXTS
 from app.bot.utils.broadcaster import broadcast_slot_freed
+from app.bot.keyboards import get_exit_keyboard
 
 scheduler = AsyncIOScheduler()
 
@@ -39,8 +40,8 @@ async def _safe_create_task(coro):
 async def check_confirmations(bot: Bot):
     """
     1) Находит записи за 40 минут до начала и рассылает запрос на подтверждение (кнопка).
-    2) Находит записи за 30 минут до начала, которые не подтверждены -> автo-отмена.
-    На ответ даеться 10 минут
+    2) Находит записи за 30 минут до начала, которые не подтверждены -> авто-отмена.
+    На ответ даётся 10 минут.
     """
     now = datetime.now()
     logging.debug(f"check_confirmations run at {now.isoformat()}")
@@ -53,46 +54,58 @@ async def check_confirmations(bot: Bot):
         bookings_to_remind = []
 
     for b in bookings_to_remind:
-        # Защита от некорректных данных
         user = getattr(b, "user", None)
         if not user or not getattr(user, "tg_id", None):
             continue
 
-        # Выбираем локаль; fallback на RU/ENG/первую
         lang = getattr(user, "language", None)
         t = ALL_TEXTS.get(lang) if lang else None
         if not t:
             t = ALL_TEXTS.get("RU") or ALL_TEXTS.get("ENG") or list(ALL_TEXTS.values())[0]
 
-        # Формируем клавиатуру подтверждения
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=t.get("confirm_btn", "Confirm"), callback_data=f"confirm_{b.id}")]
         ])
 
-        # Форматируем дату/время (подстраховка: поддержка timezone-aware datetime вне рамок этого патча)
+        # Общие параметры для текста
         try:
-            time_str = b.start_time.strftime("%H:%M")
-            datetime_str = b.start_time.strftime("%d.%m %H:%M")
+            date_str = b.start_time.strftime("%d.%m")
+            start_time_str = b.start_time.strftime("%H:%M")
+            end_time_str = b.end_time.strftime("%H:%M")
         except Exception:
-            # Если start_time нестандартный — приводим через str()
-            time_str = str(getattr(b, "start_time", ""))
-            datetime_str = time_str
+            date_str = ""
+            start_time_str = ""
+            end_time_str = ""
 
-        confirm_text = t.get("confirm_booking_prompt",
-                             "Please confirm your booking scheduled for {datetime} (start at {time}).").format(
-            datetime=datetime_str,
-            time=time_str
+        time_range = f"{start_time_str} - {end_time_str}"
+
+        raw_type = getattr(b.machine, "type_machine", "") if getattr(b, "machine", None) else ""
+        if raw_type == "Стиральная":
+            machine_type = t.get("machine_type_wash", "Стиральная")
+        elif raw_type == "Сушильная":
+            machine_type = t.get("machine_type_dry", "Сушильная")
+        else:
+            machine_type = raw_type or "Неизвестная"
+
+        machine_num = getattr(b.machine, "number_machine", "?") if getattr(b, "machine", None) else "?"
+
+        confirm_text = t.get(
+            "confirm_booking_prompt",
+            "⏳ <b>Booking confirmation</b>\n\n"
+            "You have scheduled {machine_type} machine №{machine_num} on <b>{date}</b> "
+            "(time: {time_range}).\n"
+            "Please confirm, otherwise it will be canceled in 10 minutes."
+        ).format(
+            machine_type=machine_type,
+            machine_num=machine_num,
+            date=date_str,
+            time_range=time_range
         )
 
         try:
-            await bot.send_message(user.tg_id, confirm_text, reply_markup=kb)
-            # Обновляем статус записи на ожидание подтверждения
-            try:
-                await set_booking_status(b.id, "Ожидание")
-            except Exception as e:
-                logging.error(f"Failed to set booking status wait_confirm for {b.id}: {e}")
+            await bot.send_message(user.tg_id, confirm_text, reply_markup=kb, parse_mode="HTML")
+            await set_booking_status(b.id, "Ожидание")
             logging.info(f"Sent confirmation request for booking {b.id} to {user.tg_id}")
-            # небольшая пауза между отправками
             await asyncio.sleep(0.05)
         except Exception as e:
             logging.error(f"Failed to send confirm request to {getattr(user, 'tg_id', None)}: {e}")
@@ -113,7 +126,6 @@ async def check_confirmations(bot: Bot):
             logging.error(f"Failed to cancel booking {b.id}: {e}")
             continue
 
-        # Уведомление владельцу (если есть)
         user = getattr(b, "user", None)
         if user and getattr(user, "tg_id", None):
             lang = getattr(user, "language", None)
@@ -122,20 +134,44 @@ async def check_confirmations(bot: Bot):
                 t = ALL_TEXTS.get("RU") or ALL_TEXTS.get("ENG") or list(ALL_TEXTS.values())[0]
 
             try:
-                time_str = b.start_time.strftime("%H:%M")
-                datetime_str = b.start_time.strftime("%d.%m %H:%M")
+                date_str = b.start_time.strftime("%d.%m")
+                start_time_str = b.start_time.strftime("%H:%M")
+                end_time_str = b.end_time.strftime("%H:%M")
             except Exception:
-                time_str = str(getattr(b, "start_time", ""))
-                datetime_str = time_str
+                date_str = ""
+                start_time_str = ""
+                end_time_str = ""
+
+            time_range = f"{start_time_str}-{end_time_str}"
+
+            raw_type = getattr(b.machine, "type_machine", "") if getattr(b, "machine", None) else ""
+            if raw_type == "Стиральная":
+                machine_type = t.get("machine_type_wash", "Стиральная")
+            elif raw_type == "Сушильная":
+                machine_type = t.get("machine_type_dry", "Сушильная")
+            else:
+                machine_type = raw_type or "Неизвестная"
+
+            machine_num = getattr(b.machine, "number_machine", "") if getattr(b, "machine", None) else ""
+
+            autocancel_text = t.get(
+                "booking_autocanceled",
+                "❌ Your booking Date: {date} Time: {time_range} Machine: {machine_type} №{machine_num} was automatically canceled."
+            ).format(
+                date=date_str,
+                time_range=time_range,
+                machine_type=machine_type,
+                machine_num=machine_num
+            )
 
             try:
-                await bot.send_message(user.tg_id, t.get("booking_autocanceled",
-                                                         "Your booking for {datetime} ({time}) was automatically canceled.")
-                                       .format(datetime=datetime_str, time=time_str))
+                await bot.send_message(user.tg_id, 
+                                       autocancel_text, 
+                                       reply_markup=get_exit_keyboard(lang))
             except Exception as e:
                 logging.error(f"Failed to notify owner {user.tg_id} about autocancel: {e}")
 
-        # 3. Рассылаем всем остальным, что слот свободен
+        # Рассылка о свободном слоте
         booking_data = {
             "date_str": b.start_time.strftime("%d.%m"),
             "start_time_str": b.start_time.strftime("%H:%M"),
@@ -143,15 +179,10 @@ async def check_confirmations(bot: Bot):
             "machine_type": getattr(b.machine, "type_machine", "") if getattr(b, "machine", None) else "",
             "machine_num": getattr(b.machine, "number_machine", "") if getattr(b, "machine", None) else ""
         }
-        # Запускаем рассылку в фоне (обёртка логирует ошибки фоновой таски)
         await _safe_create_task(broadcast_slot_freed(bot, booking_data, exclude_tg_id=getattr(user, "tg_id", None)))
 
 
 def start_scheduler(bot: Bot):
-    """
-    Запускает планировщик. max_instances=1 и coalesce=True предотвращают
-    параллельные исполнения одного job'а при долгой работе.
-    """
     scheduler.add_job(
         check_confirmations,
         'interval',
