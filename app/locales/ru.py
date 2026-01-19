@@ -5,6 +5,7 @@ RUtexts = {
         "welcome_lang_choice": "Здравствуйте, выберите язык\nHello, choose a language",
         "record_laundry": "Записаться на стирку",
         "show_records": "Показать мои записи",
+        "report_sent": "Сообщение отправлено",
         "cancel_record": "Отменить запись",
         "report_in_admin": "Сообщить о проблеме",
         "report_too_long": "Сообщение слишком длинное. Пожалуйста, сократите и отправьте заново.",

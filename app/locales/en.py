@@ -5,6 +5,7 @@ ENtexts = {
         "welcome_lang_choice": "Hello, choose a language",
         "record_laundry": "Book a wash",
         "report_in_admin": "Report a problem",
+        "report_sent": "The message has been sent",
         "report_prompt": "Specify the machine number and type, and describe the problem:",
         "report_too_long": "Message is too long. Please shorten it and send again.",
         "show_records": "Show my bookings",

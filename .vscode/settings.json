@@ -9,7 +9,7 @@
         "app/db/models/__pycache__": true,
         "app/db/models/__init__.py": true,
         "app/db/__pycache__": true,
-        ".venv": true,
+        ".venv": false,
         ".vscode": true,
         "app/__pycache__": true,
         "app/bot/__pycache__": true,

@@ -4,6 +4,7 @@ CNtexts = {
         "hello_user": "你好, {name}! 请选择一个操作:",
         "welcome_lang_choice": "Здравствуйте, выберите язык\nHello, choose a language\n你好, 选择语言",
         "record_laundry": "预订洗衣",
+        "report_sent": "该消息已发送",
         "report_in_admin": "报告问题",
         "report_prompt": "指定机器的数量和类型并描述问题。:",
         "show_records": "查看我的预订",
