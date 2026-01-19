@@ -167,6 +167,10 @@ async def process_time_slot(callback: CallbackQuery, state: FSMContext):
     # ожидаем формат time_YEAR_MONTH_DAY_HOUR_MINUTE
     year, month, day, hour, minute = map(int, parts[1:6])
     chosen_dt = datetime(year, month, day, hour, minute)
+    
+    # Рассчитываем время окончания (90 минут, как в логике бронирования)
+    duration_minutes = 90
+    end_dt = chosen_dt + timedelta(minutes=duration_minutes)
 
     await state.update_data(start_time=chosen_dt)
 
@@ -178,13 +182,19 @@ async def process_time_slot(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(t["machines_none"])
         return
 
+    # Формируем новый текст с интервалом времени
+    prompt_text = t["machine_prompt"].format(
+        date=chosen_dt.strftime('%d.%m'),
+        start=chosen_dt.strftime('%H:%M'),
+        end=end_dt.strftime('%H:%M')
+    )
+
     await callback.message.edit_text(
-        t["machine_prompt"].replace("{datetime}", chosen_dt.strftime('%d.%m %H:%M')),
+        prompt_text,
         reply_markup=get_machines_keyboard(available_machines, lang)
     )
     await state.set_state(AddRecord.waiting_for_machine)
     await callback.answer()
-
 
 @booking_router.callback_query(F.data.startswith("machine_"), AddRecord.waiting_for_machine)
 async def process_machine(callback: CallbackQuery, state: FSMContext):
