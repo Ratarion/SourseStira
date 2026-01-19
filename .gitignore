@@ -5,3 +5,4 @@ venv
 .venv
 logs.txt
 logs
+.gitignore
